@@ -1,0 +1,228 @@
+{
+  "city": "Mumbai",
+  "skills": [
+    "Plumber",
+    "Electrician",
+    "Carpenter",
+    "Maid/Housekeeping",
+    "Cook",
+    "Painter",
+    "Driver",
+    "Delivery",
+    "AC Repair",
+    "Other"
+  ],
+  "areas": [
+    "Andheri West",
+    "Andheri East",
+    "Bandra East",
+    "Bandra West",
+    "Powai",
+    "Juhu",
+    "Dadar",
+    "Chembur",
+    "Goregaon East",
+    "Goregaon West",
+    "Borivali East",
+    "Borivali West",
+    "Malad East",
+    "Malad West",
+    "Kurla",
+    "Mulund",
+    "Vikhroli",
+    "Ghatkopar East",
+    "Ghatkopar West",
+    "Khar",
+    "Santacruz East",
+    "Santacruz West",
+    "Vile Parle",
+    "Sion",
+    "Wadala",
+    "Worli",
+    "Colaba",
+    "Lower Parel",
+    "Dahisar",
+    "Kandivali"
+  ],
+  "prices": [
+    "₹200–500/hr",
+    "₹500–1000/hr",
+    "₹1000+/hr",
+    "Project-based"
+  ],
+  "experience": [
+    "1–2 years",
+    "3–5 years",
+    "5+ years"
+  ],
+  "nearby": {
+    "Andheri West": [
+      "Andheri East",
+      "Juhu",
+      "Vile Parle",
+      "Goregaon West"
+    ],
+    "Andheri East": [
+      "Andheri West",
+      "Vile Parle",
+      "Goregaon East",
+      "Powai"
+    ],
+    "Bandra East": [
+      "Bandra West",
+      "Khar",
+      "Santacruz East",
+      "Kurla"
+    ],
+    "Bandra West": [
+      "Bandra East",
+      "Khar",
+      "Santacruz West"
+    ],
+    "Powai": [
+      "Vikhroli",
+      "Ghatkopar West",
+      "Andheri East"
+    ],
+    "Juhu": [
+      "Andheri West",
+      "Vile Parle",
+      "Santacruz West"
+    ],
+    "Dadar": [
+      "Lower Parel",
+      "Worli",
+      "Wadala",
+      "Sion"
+    ],
+    "Chembur": [
+      "Ghatkopar East",
+      "Kurla",
+      "Sion",
+      "Wadala"
+    ],
+    "Goregaon East": [
+      "Goregaon West",
+      "Malad East",
+      "Andheri East"
+    ],
+    "Goregaon West": [
+      "Goregaon East",
+      "Malad West",
+      "Andheri West"
+    ],
+    "Borivali East": [
+      "Borivali West",
+      "Kandivali",
+      "Dahisar"
+    ],
+    "Borivali West": [
+      "Borivali East",
+      "Kandivali",
+      "Dahisar"
+    ],
+    "Malad East": [
+      "Malad West",
+      "Goregaon East",
+      "Kandivali"
+    ],
+    "Malad West": [
+      "Malad East",
+      "Goregaon West",
+      "Kandivali"
+    ],
+    "Kurla": [
+      "Ghatkopar West",
+      "Chembur",
+      "Sion",
+      "Bandra East"
+    ],
+    "Mulund": [
+      "Vikhroli",
+      "Ghatkopar West"
+    ],
+    "Vikhroli": [
+      "Ghatkopar West",
+      "Powai",
+      "Mulund"
+    ],
+    "Ghatkopar East": [
+      "Ghatkopar West",
+      "Chembur",
+      "Vikhroli"
+    ],
+    "Ghatkopar West": [
+      "Ghatkopar East",
+      "Vikhroli",
+      "Kurla",
+      "Powai"
+    ],
+    "Khar": [
+      "Bandra West",
+      "Bandra East",
+      "Santacruz West"
+    ],
+    "Santacruz East": [
+      "Santacruz West",
+      "Vile Parle",
+      "Bandra East"
+    ],
+    "Santacruz West": [
+      "Santacruz East",
+      "Khar",
+      "Juhu",
+      "Vile Parle"
+    ],
+    "Vile Parle": [
+      "Andheri West",
+      "Andheri East",
+      "Juhu",
+      "Santacruz East"
+    ],
+    "Sion": [
+      "Kurla",
+      "Wadala",
+      "Dadar",
+      "Chembur"
+    ],
+    "Wadala": [
+      "Sion",
+      "Dadar",
+      "Chembur"
+    ],
+    "Worli": [
+      "Lower Parel",
+      "Dadar"
+    ],
+    "Colaba": [
+      "Lower Parel"
+    ],
+    "Lower Parel": [
+      "Worli",
+      "Dadar",
+      "Colaba"
+    ],
+    "Dahisar": [
+      "Borivali East",
+      "Borivali West"
+    ],
+    "Kandivali": [
+      "Malad East",
+      "Malad West",
+      "Borivali East",
+      "Borivali West"
+    ]
+  },
+  "priceGuide": {
+    "Plumber": "₹300–800 per visit",
+    "Electrician": "₹200–600 per visit",
+    "Carpenter": "₹500–1500 per job",
+    "Maid/Housekeeping": "₹3000–8000 per month",
+    "Cook": "₹4000–10000 per month",
+    "Painter": "₹15–25 per sq ft",
+    "Driver": "₹800–1200 per day",
+    "Delivery": "₹300–600 per trip",
+    "AC Repair": "₹400–900 per service",
+    "Other": "Agree the price on WhatsApp"
+  }
+}

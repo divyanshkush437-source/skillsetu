@@ -1,0 +1,936 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Transform": "AWS::Serverless-2016-10-31",
+  "Description": "SkillSetu Mumbai marketplace and Amplify hosting",
+  "Parameters": {
+    "FirebaseProject": {
+      "Type": "String"
+    },
+    "SesSender": {
+      "Type": "String"
+    },
+    "ReviewInbox": {
+      "Type": "String"
+    },
+    "TurnstileSecretParameter": {
+      "Type": "String",
+      "Default": ""
+    }
+  },
+  "Globals": {
+    "Function": {
+      "CodeUri": "backend/",
+      "Runtime": "nodejs22.x",
+      "Timeout": 20,
+      "MemorySize": 256,
+      "Environment": {
+        "Variables": {
+          "WORKERS": {
+            "Ref": "Workers"
+          },
+          "JOBS": {
+            "Ref": "Jobs"
+          },
+          "STATE": {
+            "Ref": "State"
+          },
+          "FIREBASE_PROJECT": {
+            "Ref": "FirebaseProject"
+          },
+          "SENDER": {
+            "Ref": "SesSender"
+          },
+          "REVIEWER": {
+            "Ref": "ReviewInbox"
+          },
+          "ORIGIN": {
+            "Fn::Sub": "https://main.${Host.DefaultDomain}"
+          },
+          "TURNSTILE_PARAMETER": {
+            "Ref": "TurnstileSecretParameter"
+          }
+        }
+      }
+    }
+  },
+  "Resources": {
+    "Host": {
+      "Type": "AWS::Amplify::App",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}"
+        },
+        "Platform": "WEB",
+        "CustomRules": [
+          {
+            "Source": "</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff2|json|map|html)$)([^.]+$)/>",
+            "Target": "/index.html",
+            "Status": "200"
+          }
+        ]
+      }
+    },
+    "Main": {
+      "Type": "AWS::Amplify::Branch",
+      "Properties": {
+        "AppId": {
+          "Fn::GetAtt": [
+            "Host",
+            "AppId"
+          ]
+        },
+        "BranchName": "main",
+        "Stage": "PRODUCTION",
+        "EnableAutoBuild": false
+      }
+    },
+    "Api": {
+      "Type": "AWS::Serverless::HttpApi",
+      "Properties": {
+        "CorsConfiguration": {
+          "AllowOrigins": [
+            {
+              "Fn::Sub": "https://main.${Host.DefaultDomain}"
+            }
+          ],
+          "AllowHeaders": [
+            "Authorization",
+            "Content-Type",
+            "X-Captcha-Token"
+          ],
+          "AllowMethods": [
+            "GET",
+            "POST",
+            "PATCH",
+            "OPTIONS"
+          ]
+        },
+        "DefaultRouteSettings": {
+          "ThrottlingBurstLimit": 200,
+          "ThrottlingRateLimit": 100
+        }
+      }
+    },
+    "Workers": {
+      "Type": "AWS::DynamoDB::Table",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BillingMode": "PAY_PER_REQUEST",
+        "SSESpecification": {
+          "SSEEnabled": true
+        },
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "PK",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "SK",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "tradeKey",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "areaKey",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "PK",
+            "KeyType": "HASH"
+          },
+          {
+            "AttributeName": "SK",
+            "KeyType": "RANGE"
+          }
+        ],
+        "GlobalSecondaryIndexes": [
+          {
+            "IndexName": "skill-locality-index",
+            "KeySchema": [
+              {
+                "AttributeName": "tradeKey",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "areaKey",
+                "KeyType": "RANGE"
+              }
+            ],
+            "Projection": {
+              "ProjectionType": "ALL"
+            }
+          },
+          {
+            "IndexName": "locality-index",
+            "KeySchema": [
+              {
+                "AttributeName": "areaKey",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "tradeKey",
+                "KeyType": "RANGE"
+              }
+            ],
+            "Projection": {
+              "ProjectionType": "ALL"
+            }
+          }
+        ]
+      }
+    },
+    "Jobs": {
+      "Type": "AWS::DynamoDB::Table",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BillingMode": "PAY_PER_REQUEST",
+        "SSESpecification": {
+          "SSEEnabled": true
+        },
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "PK",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "SK",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "tradeKey",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "areaKey",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "PK",
+            "KeyType": "HASH"
+          },
+          {
+            "AttributeName": "SK",
+            "KeyType": "RANGE"
+          }
+        ],
+        "GlobalSecondaryIndexes": [
+          {
+            "IndexName": "skill-locality-index",
+            "KeySchema": [
+              {
+                "AttributeName": "tradeKey",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "areaKey",
+                "KeyType": "RANGE"
+              }
+            ],
+            "Projection": {
+              "ProjectionType": "ALL"
+            }
+          }
+        ],
+        "TimeToLiveSpecification": {
+          "AttributeName": "expiresAt",
+          "Enabled": true
+        },
+        "StreamSpecification": {
+          "StreamViewType": "NEW_IMAGE"
+        }
+      }
+    },
+    "State": {
+      "Type": "AWS::DynamoDB::Table",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BillingMode": "PAY_PER_REQUEST",
+        "SSESpecification": {
+          "SSEEnabled": true
+        },
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "PK",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "PK",
+            "KeyType": "HASH"
+          }
+        ],
+        "TimeToLiveSpecification": {
+          "AttributeName": "expiresAt",
+          "Enabled": true
+        }
+      }
+    },
+    "RegisterWorkerFn": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "registerWorker.handler",
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "Workers",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${Workers.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${State.Arn}/index/*"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "Http": {
+            "Type": "HttpApi",
+            "Properties": {
+              "ApiId": {
+                "Ref": "Api"
+              },
+              "Path": "/api/v1/worker",
+              "Method": "POST"
+            }
+          }
+        }
+      }
+    },
+    "GetWorkerFn": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "getWorker.handler",
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:GetItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "Workers",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${Workers.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${State.Arn}/index/*"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "Http": {
+            "Type": "HttpApi",
+            "Properties": {
+              "ApiId": {
+                "Ref": "Api"
+              },
+              "Path": "/api/v1/worker/{id}",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+    "SearchWorkersFn": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "searchWorkers.handler",
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:Query"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "Workers",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${Workers.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:GetItem",
+                  "dynamodb:PutItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${State.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": "ssm:GetParameter",
+                "Resource": {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/*"
+                }
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${State.Arn}/index/*"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "Http": {
+            "Type": "HttpApi",
+            "Properties": {
+              "ApiId": {
+                "Ref": "Api"
+              },
+              "Path": "/api/v1/workers",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+    "PostJobFn": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "postJob.handler",
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:PutItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "Jobs",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${Jobs.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${State.Arn}/index/*"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "Http": {
+            "Type": "HttpApi",
+            "Properties": {
+              "ApiId": {
+                "Ref": "Api"
+              },
+              "Path": "/api/v1/job",
+              "Method": "POST"
+            }
+          }
+        }
+      }
+    },
+    "UpdateAvailabilityFn": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "updateAvailability.handler",
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "Workers",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${Workers.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${State.Arn}/index/*"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "Http": {
+            "Type": "HttpApi",
+            "Properties": {
+              "ApiId": {
+                "Ref": "Api"
+              },
+              "Path": "/api/v1/worker/{id}/availability",
+              "Method": "PATCH"
+            }
+          }
+        }
+      }
+    },
+    "MeFn": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "me.handler",
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "Workers",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${Workers.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${State.Arn}/index/*"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "Http": {
+            "Type": "HttpApi",
+            "Properties": {
+              "ApiId": {
+                "Ref": "Api"
+              },
+              "Path": "/api/v1/me",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+    "ListJobsFn": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "listJobs.handler",
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:GetItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "Workers",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${Workers.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:Query"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "Jobs",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${Jobs.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${State.Arn}/index/*"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "Http": {
+            "Type": "HttpApi",
+            "Properties": {
+              "ApiId": {
+                "Ref": "Api"
+              },
+              "Path": "/api/v1/jobs",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+    "ReportFn": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "report.handler",
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:GetItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "Workers",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${Workers.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": "ses:SendEmail",
+                "Resource": {
+                  "Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/*"
+                }
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${State.Arn}/index/*"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "Http": {
+            "Type": "HttpApi",
+            "Properties": {
+              "ApiId": {
+                "Ref": "Api"
+              },
+              "Path": "/api/v1/worker/{id}/report",
+              "Method": "POST"
+            }
+          }
+        }
+      }
+    },
+    "OtpAttemptFn": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "otpAttempt.handler",
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${State.Arn}/index/*"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "Http": {
+            "Type": "HttpApi",
+            "Properties": {
+              "ApiId": {
+                "Ref": "Api"
+              },
+              "Path": "/api/v1/otp-attempt",
+              "Method": "POST"
+            }
+          }
+        }
+      }
+    },
+    "NotifyFn": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "notify.handler",
+        "Timeout": 120,
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:Query"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "Workers",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${Workers.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:GetItem",
+                  "dynamodb:PutItem"
+                ],
+                "Resource": [
+                  {
+                    "Fn::GetAtt": [
+                      "State",
+                      "Arn"
+                    ]
+                  },
+                  {
+                    "Fn::Sub": "${State.Arn}/index/*"
+                  }
+                ]
+              },
+              {
+                "Effect": "Allow",
+                "Action": "ses:SendEmail",
+                "Resource": {
+                  "Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/*"
+                }
+              },
+              {
+                "Effect": "Allow",
+                "Action": "sns:Publish",
+                "Resource": "*"
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "NewJob": {
+            "Type": "DynamoDB",
+            "Properties": {
+              "Stream": {
+                "Fn::GetAtt": [
+                  "Jobs",
+                  "StreamArn"
+                ]
+              },
+              "StartingPosition": "TRIM_HORIZON",
+              "BatchSize": 1,
+              "MaximumRetryAttempts": 5,
+              "FilterCriteria": {
+                "Filters": [
+                  {
+                    "Pattern": "{\"eventName\":[\"INSERT\"]}"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "AppId": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Host",
+          "AppId"
+        ]
+      }
+    },
+    "PublicUrl": {
+      "Value": {
+        "Fn::Sub": "https://main.${Host.DefaultDomain}"
+      }
+    },
+    "ApiBase": {
+      "Value": {
+        "Fn::Sub": "https://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}/api/v1"
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Optional paid Amplify WAF integration; deploy in us-east-1",
+  "Parameters": { "AppArn": { "Type": "String" } },
+  "Resources": {
+    "Firewall": {
+      "Type": "AWS::WAFv2::WebACL",
+      "Properties": {
+        "Scope": "CLOUDFRONT",
+        "DefaultAction": { "Allow": {} },
+        "VisibilityConfig": {
+          "CloudWatchMetricsEnabled": true,
+          "MetricName": "SkillSetuHost",
+          "SampledRequestsEnabled": false
+        },
+        "Rules": [
+          {
+            "Name": "CommonRules",
+            "Priority": 0,
+            "OverrideAction": { "None": {} },
+            "Statement": {
+              "ManagedRuleGroupStatement": {
+                "VendorName": "AWS",
+                "Name": "AWSManagedRulesCommonRuleSet"
+              }
+            },
+            "VisibilityConfig": {
+              "CloudWatchMetricsEnabled": true,
+              "MetricName": "CommonRules",
+              "SampledRequestsEnabled": false
+            }
+          }
+        ]
+      }
+    },
+    "Association": {
+      "Type": "AWS::WAFv2::WebACLAssociation",
+      "Properties": {
+        "ResourceArn": { "Ref": "AppArn" },
+        "WebACLArn": { "Fn::GetAtt": ["Firewall", "Arn"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "skillsetu-api",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.887.0",
+    "@aws-sdk/lib-dynamodb": "^3.887.0",
+    "@aws-sdk/client-ses": "^3.887.0",
+    "@aws-sdk/client-sns": "^3.887.0",
+    "@aws-sdk/client-ssm": "^3.887.0",
+    "firebase-admin": "13.5.0"
+  }
+}

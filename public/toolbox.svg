@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 330" fill="none"><defs><pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0v24" stroke="#d1d3e4" opacity=".13"/></pattern><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse"><path d="m0 6 6-6" stroke="#221e31" opacity=".25"/></pattern></defs><rect width="500" height="330" fill="url(#grid)"/><g stroke="#adaac0" opacity=".35" stroke-dasharray="3 6"><circle cx="270" cy="172" r="125"/><path d="M32 271h445M262 9v302"/></g><g fill="#acabbf" font-family="monospace" font-size="10" letter-spacing="2"><text x="36" y="42">FIG. 01</text><text x="321" y="309">FIELD TOOLKIT</text></g><g stroke="#9d9bad" opacity=".7"><path d="M37 65h9m-4-5v10m404 152h9m-5-5v10M98 240h9m-5-5v10"/></g>
+<path d="m89 256 193 57 143-62-182-52z" fill="#111222" opacity=".55"/>
+<g stroke="#202034" stroke-width="3.5" stroke-linejoin="round">
+<!-- Rear tray and arched handle -->
+<path d="m108 182 136-55 150 44-140 64z" fill="#bd5354"/>
+<path d="m145 177 2-43q1-12 13-17l63-26q10-4 19 0l91 29q8 3 8 13v37l-13 4v-35l-94-30-70 30v34z" fill="#e39969"/>
+<path d="m193 103 37-15 71 22-14 14-54-17-32 13z" fill="#25263b" stroke="#e6aa77"/>
+<!-- Steel open wrench -->
+<g transform="rotate(22 281 109)"><path d="M275 172V92c-18-6-24-22-19-37l12 17 15 1 8-14-11-19c22 1 34 23 23 41l-11 13v78q-9 12-17 0z" fill="#ccdbdb"/><path d="m283 103-1 54" stroke="#82989e"/><circle cx="284" cy="168" r="3" fill="#82989e"/></g>
+<!-- Paintbrush -->
+<g transform="rotate(-21 201 120)"><path d="M193 181v-54l-11-13V77h36v37l-11 13v54z" fill="#e9b55e"/><path d="M181 92h38v22h-38z" fill="#adbcc5"/><path d="M181 91V58l7 2 5-3 5 3 5-2 5 1 10-2v34z" fill="#f7cf82"/><path d="M189 61v19m8-18v23m10-25v20" stroke="#b58342" stroke-width="2"/></g>
+<!-- screwdriver -->
+<g transform="rotate(31 336 136)"><path d="M332 181v-54h8v54z" fill="#c5d4d8"/><rect x="323" y="70" width="26" height="66" rx="10" fill="#e9695d"/><path d="M331 83v36m9-36v36" stroke="#aa484c"/></g>
+<path d="m108 181 146 45 141-55-1 64-141 60-142-45z" fill="#e9695d"/>
+<path d="m254 226 141-55-1 64-141 60z" fill="#b94948"/><path d="m254 237 138-55v52l-138 58z" fill="url(#hatch)" stroke="none"/>
+<path d="m103 179 151 45 144-58v15l-144 59-151-47z" fill="#f18e78"/>
+<path d="m254 224 144-58v15l-144 59z" fill="#d95d54"/>
+<path d="m131 197 16 5v16l-16-5zm81 25 16 5v15l-16-4z" fill="#fbc06e"/>
+<path d="m157 227 41 13v15l-41-13z" fill="#f8d3a4"/><path d="m164 235 26 8" stroke-width="2"/>
+</g><path d="M367 76h39l14-14h27M105 208H78l-14 13H43" stroke="#b8b3c8" opacity=".62"/><circle cx="368" cy="76" r="2.5" fill="#efaa72"/></svg>
