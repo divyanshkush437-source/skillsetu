@@ -20,6 +20,20 @@ const auth = getAuth(
     initializeApp({ projectId: process.env.FIREBASE_PROJECT }),
   ),
   ssm = new SSMClient({});
+export async function proveContact(token, number) {
+  try {
+    if (typeof token !== "string" || token.length > 8192) throw Error();
+    const claims = await auth.verifyIdToken(token);
+    if (
+      claims.phone_number !== number ||
+      claims.firebase?.sign_in_provider !== "phone" ||
+      now() - claims.auth_time > 900
+    )
+      throw Error();
+  } catch {
+    reject("Verify the work number again.");
+  }
+}
 export const hash = (s) => createHash("sha256").update(s).digest("hex");
 export function key(id) {
   return { PK: "worker#" + id, SK: "profile" };

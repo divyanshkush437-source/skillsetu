@@ -1,3 +1,4 @@
+import { available, areasOf } from "./listing.mjs";
 import { readFileSync } from "node:fs";
 export const config = JSON.parse(
   readFileSync(new URL("./config.json", import.meta.url)),
@@ -31,7 +32,16 @@ export function phone(v) {
   reject("Enter a valid mobile number with country code.");
 }
 export function profile(b) {
+  const extra = b.serviceAreas ?? [];
+  if (!Array.isArray(extra) || extra.length > 3)
+    reject("Choose up to three service areas.");
+  if (new Set([b.locality, ...extra]).size > 3)
+    reject("Choose up to three service areas.");
   return {
+    listed: bool(b.listed ?? true),
+    serviceAreas: [
+      ...new Set([b.locality, ...extra.map((a) => allowed(a, config.areas))]),
+    ],
     name: clean(b.name, 50),
     skill: allowed(b.skill, config.skills),
     locality: allowed(b.locality, config.areas),
@@ -42,33 +52,24 @@ export function profile(b) {
     alerts: bool(b.alerts ?? false),
   };
 }
-export const publicFields = [
-  "id",
-  "name",
-  "skill",
-  "locality",
-  "experience",
-  "priceRange",
-  "availability",
-  "verified",
-  "lastSeen",
-  "createdAt",
-  "whatsappLink",
-];
 export function publicWorker(w) {
-  return Object.fromEntries(publicFields.map((k) => [k, w[k]]));
-}
-// The first WhatsApp message, pre-filled so the household doesn't start from a blank chat.
-export function waMessage(skill, locality) {
-  return (
-    "Hi, I found you on SkillSetu. I need a " +
-    skill.toLowerCase() +
-    " in " +
-    locality +
-    ". Are you available today?"
-  );
-}
-// Localities next to this one, so a search still finds workers who travel a short distance.
-export function nearbyAreas(locality) {
-  return config.nearby[locality] || [];
+  return {
+    ...Object.fromEntries(
+      [
+        "id",
+        "name",
+        "skill",
+        "locality",
+        "experience",
+        "priceRange",
+        "availability",
+        "verified",
+        "lastSeen",
+        "createdAt",
+        "confirmedAt",
+      ].map((k) => [k, w[k]]),
+    ),
+    serviceAreas: areasOf(w),
+    availability: available(w),
+  };
 }

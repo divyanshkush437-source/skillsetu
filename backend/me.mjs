@@ -14,6 +14,9 @@ export const handler = endpoint(async ({ user }) => {
     );
     return {
       ...publicWorker(w),
+      listed: w.listed ?? true,
+      moderation: w.moderation ?? "active",
+      contactVerified: w.contactVerified === true || w.phone === w.whatsapp,
       whatsapp: w.whatsapp,
       alerts: w.alerts ?? false,
     };

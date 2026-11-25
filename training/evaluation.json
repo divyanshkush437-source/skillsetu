@@ -1,0 +1,12 @@
+{
+ "Plumber":["Can you replace the kitchen tap today?","Bathroom ka nal leak hai","बाथरूम का नल बदलना है"],
+ "Electrician":["Please check my switchboard tomorrow","Bijli ka socket jal gaya","कमरे में पंखा लगवाना है"],
+ "Carpenter":["My cupboard hinge came loose","Almari ki shelf toot gayi","कुर्सी और अलमारी ठीक करें"],
+ "Maid/Housekeeping":["Need someone to mop twice a week","Subah bartan dhone hain","सुबह झाड़ू और पोछा चाहिए"],
+ "Cook":["Dinner and breakfast for two people","Har din roti aur dal chahiye","कल रोटी बनानी है"],
+ "Painter":["Need primer for two walls","Naye ghar ki deewar par rang","दीवार की पुताई चाहिए"],
+ "Driver":["Chauffeur to take us to a wedding","Kal gaadi chalane wala chahiye","सुबह कार चलाने वाला चाहिए"],
+ "Delivery":["Can someone collect my courier?","Office tak parcel le jana hai","कल पार्सल पहुंचाना है"],
+ "AC Repair":["My air conditioner makes a noise","AC ki gas check karni hai","एसी से आवाज आ रही है"],
+ "abstain":["Need somebody urgently","Kal madad chahiye","मदद चाहिए","Teach guitar this weekend","Fix my laptop keyboard","Book a yoga teacher"]
+}

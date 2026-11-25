@@ -1,0 +1,11 @@
+{
+  "Plumber": ["Fix a leaking kitchen tap", "Bathroom pipe is dripping", "Drain and sink are blocked", "Replace toilet flush tank", "Nal se pani tapak raha hai", "Pipe leak ho gaya", "नल से पानी टपक रहा है", "सिंक का पाइप बदलना है"],
+  "Electrician": ["Repair faulty switchboard", "Install ceiling fan and wiring", "Power socket stopped working", "Light trips the circuit breaker", "Bijli ka switch kharab hai", "Pankha lagwana hai", "पंखा लगवाना है", "बिजली का स्विच खराब है"],
+  "Carpenter": ["Repair wooden door hinge", "Fix cupboard drawer", "Assemble wooden table and chairs", "Fit shelves in wardrobe", "Almari ka darwaza theek karo", "Lakdi ki shelf lagani hai", "अलमारी का दरवाजा ठीक करें", "लकड़ी की कुर्सी टूट गई"],
+  "Maid/Housekeeping": ["Sweep and mop floors", "Clean utensils and wash dishes", "Housekeeping for daily dusting", "Need help cleaning my flat", "Ghar mein jhadu pocha karna hai", "Bartan dhone ke liye madad", "झाड़ू पोछा करना है", "बर्तन धोने हैं"],
+  "Cook": ["Prepare vegetarian lunch", "Cook dinner for family", "Make rotis and dal daily", "Prepare breakfast before work", "Roz ka khana banana hai", "Roti sabzi banani hai", "खाना बनाने के लिए मदद चाहिए", "रोटी सब्जी बनानी है"],
+  "Painter": ["Paint bedroom walls", "Repaint doors and window frames", "Apply primer and wall putty", "Touch up peeling paint", "Deewar ki putty karni hai", "Kamre mein rang karna hai", "दीवार पर रंग करना है", "कमरे की पुताई करनी है"],
+  "Driver": ["Drive my car to airport", "Need chauffeur for night shift", "School pickup in our car", "Drive family to a wedding", "Gaadi chalane ke liye driver", "Airport tak gaadi chalani hai", "गाड़ी चलाने वाला चाहिए", "कार से एयरपोर्ट जाना है"],
+  "Delivery": ["Deliver a parcel across town", "Pick up documents and drop at office", "Send courier to client", "Collect package from shop", "Parcel pahunchana hai", "Dukaan se packet lana hai", "पार्सल पहुंचाना है", "दुकान से पैकेट लाना है"],
+  "AC Repair": ["Service the split AC", "Air conditioner stopped cooling", "AC gas refill required", "Clean AC filter and coil", "AC ki cooling kam hai", "Air conditioner ki servicing karni hai", "एसी ठंडा नहीं कर रहा", "एसी की सर्विस चाहिए"]
+}

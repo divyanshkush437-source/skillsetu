@@ -15,3 +15,25 @@ export function firebaseAuth() {
     throw e;
   }));
 }
+
+let alternate;
+export function alternateAuth() {
+  return (alternate ??= (async () => {
+    const base = "https://www.gstatic.com/firebasejs/11.10.0/";
+    const [{ initializeApp }, sdk] = await Promise.all([
+      import(base + "firebase-app.js"),
+      import(base + "firebase-auth.js"),
+    ]);
+    const app = initializeApp(
+      window.SKILLSETU.firebase,
+      "contact-verification",
+    );
+    const auth = sdk.initializeAuth(app, {
+      persistence: sdk.inMemoryPersistence,
+    });
+    return { auth, sdk };
+  })().catch((e) => {
+    alternate = null;
+    throw e;
+  }));
+}

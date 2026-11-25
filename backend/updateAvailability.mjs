@@ -3,13 +3,16 @@ import { bool, reject } from "./validation.mjs";
 export const handler = endpoint(async ({ user, event, body }) => {
   if (user.uid !== event.pathParameters.id)
     reject("You can only update your own availability.", 401);
-  const value = bool(body.availability);
+  const visibility = event.routeKey.endsWith("/visibility");
+  const value = bool(visibility ? body.listed : body.availability);
   try {
     await db.send(
       new UpdateCommand({
         TableName: workers,
         Key: key(user.uid),
-        UpdateExpression: "SET availability = :v, lastSeen = :t",
+        UpdateExpression: visibility
+          ? "SET listed = :v, lastSeen = :t"
+          : "SET availability = :v, lastSeen = :t, confirmedAt = :t",
         ConditionExpression: "attribute_exists(PK)",
         ExpressionAttributeValues: {
           ":v": value,
@@ -22,5 +25,5 @@ export const handler = endpoint(async ({ user, event, body }) => {
       reject("Create your profile first.");
     throw e;
   }
-  return { availability: value };
+  return visibility ? { listed: value } : { availability: value };
 }, true);

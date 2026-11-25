@@ -13,7 +13,6 @@ export const samples = [
     "919876543210",
     "1 hour ago",
     24,
-    "2026-11-08",
   ],
   [
     "demo-002",
@@ -26,7 +25,6 @@ export const samples = [
     "919876543211",
     "30 mins ago",
     18,
-    "2026-11-15",
   ],
   [
     "demo-003",
@@ -39,20 +37,6 @@ export const samples = [
     "919876543212",
     "3 hours ago",
     31,
-    "2026-11-20",
-  ],
-  [
-    "demo-004",
-    "Imran Plumbing Works",
-    "Plumber",
-    "Andheri East",
-    "3–5 years",
-    "₹200–500/hr",
-    true,
-    "919876543213",
-    "2 hours ago",
-    9,
-    "2026-11-22",
   ],
 ].map(
   ([
@@ -66,7 +50,6 @@ export const samples = [
     whatsapp,
     lastSeen,
     contacts,
-    createdAt,
   ]) => ({
     id,
     name,
@@ -77,42 +60,21 @@ export const samples = [
     availability,
     lastSeen,
     contacts,
-    createdAt,
+    createdAt: "2026-11-24T00:00:00Z",
     verified: true,
-    whatsappLink: wa(whatsapp, skill, locality),
+    whatsappLink: wa(whatsapp, skill),
   }),
 );
-// Same wording as waMessage in backend/validation.mjs.
-export function waMessage(skill, locality) {
-  return (
-    "Hi, I found you on SkillSetu. I need a " +
-    skill.toLowerCase() +
-    " in " +
-    locality +
-    ". Are you available today?"
-  );
-}
-export function wa(phone, skill, locality) {
+export function wa(phone, skill) {
   let number = phone.replace(/\D/g, "");
   if (/^[6-9]\d{9}$/.test(number)) number = "91" + number;
   return (
     "https://wa.me/" +
     number +
     "?text=" +
-    encodeURIComponent(waMessage(skill, locality))
-  );
-}
-export function nearbyAreas(locality) {
-  return config.nearby[locality] || [];
-}
-export function since(value) {
-  if (!value) return "Recently joined";
-  return (
-    "On SkillSetu since " +
-    new Date(value).toLocaleDateString("en-IN", {
-      month: "short",
-      year: "numeric",
-    })
+    encodeURIComponent(
+      "Hi, I found you on SkillSetu. Are you available for " + skill + " work?",
+    )
   );
 }
 export function read(k, f) {
@@ -176,4 +138,16 @@ export function activity(value) {
       : mins < 1440
         ? "Active " + Math.floor(mins / 60) + " hr ago"
         : "Active " + Math.floor(mins / 1440) + " days ago";
+}
+
+export function demoWorkers() {
+  const decisions = read("review", {});
+  return [...samples, ...read("profiles", [])].map((w) => ({
+    ...w,
+    ...decisions[w.id],
+  }));
+}
+export function demoReview(id, change) {
+  const reviews = read("review", {});
+  save("review", { ...reviews, [id]: { ...reviews[id], ...change } });
 }

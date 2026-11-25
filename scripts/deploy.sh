@@ -10,7 +10,7 @@ project=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.arg
 if [[ -n "${TURNSTILE_PARAMETER:-}" && -z "${TURNSTILE_SITE_KEY:-}" ]]; then echo 'Set TURNSTILE_SITE_KEY for the configured verification secret.' >&2; exit 1; fi
 aws sts get-caller-identity --output text >/dev/null
 sam build --template-file template.json
-sam deploy --region "$region" --stack-name "$stack" --resolve-s3 --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset --parameter-overrides "FirebaseProject=$project" "SesSender=$SES_SENDER" "ReviewInbox=$REVIEW_INBOX" ${TURNSTILE_PARAMETER:+"TurnstileSecretParameter=$TURNSTILE_PARAMETER"}
+sam deploy --region "$region" --stack-name "$stack" --resolve-s3 --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset --parameter-overrides "FirebaseProject=$project" "SesSender=$SES_SENDER" "ReviewInbox=$REVIEW_INBOX" "TurnstileSecretParameter=${TURNSTILE_PARAMETER:-}"
 output(){ aws cloudformation describe-stacks --region "$region" --stack-name "$stack" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue | [0]" --output text; }
 app=$(output AppId)
 export SKILL_API_BASE=$(output ApiBase)

@@ -20,17 +20,7 @@ import {
   Share2,
   Flag,
 } from "lucide-react";
-import {
-  navigate,
-  portable,
-  read,
-  save,
-  activity,
-  api,
-  live,
-  route,
-  waMessage,
-} from "./data";
+import { navigate, portable, read, save, activity, api, live } from "./data";
 export const tradeIcons = [
   Wrench,
   Zap,
@@ -59,28 +49,19 @@ export function Link({ to, children, ...props }) {
     </a>
   );
 }
-export function Contact({ w }) {
-  // Name the household's searched locality (it may be a nearby one), not the worker's.
-  const area = new URLSearchParams(route().search).get("locality");
-  const href =
-    area && w.whatsappLink
-      ? w.whatsappLink.split("?")[0] +
-        "?text=" +
-        encodeURIComponent(waMessage(w.skill, area))
-      : w.whatsappLink;
-  return (
-    <a className="contact" target="_blank" rel="noreferrer" href={href}>
-      <MessageCircle size={19} />
-      Contact on WhatsApp
-      <ArrowUpRight size={16} />
-    </a>
-  );
-}
+import { Contact } from "./enquiry";
+export { Contact };
+import { reasons, areasOf } from "../backend/listing.mjs";
+import { demoReview, demoWorkers } from "./data";
 export function Availability({ value }) {
   return (
     <span className={"status " + (!value ? "busy" : "")}>
       <i />
-      {value ? "Available now" : "Not available"}
+      {value === null
+        ? "Confirm availability"
+        : value
+          ? "Available now"
+          : "Not available"}
     </span>
   );
 }
@@ -120,11 +101,13 @@ export function BookmarkButton({ id }) {
     </button>
   );
 }
-export function WorkerCard({ w }) {
+export function WorkerCard({ w, area }) {
   return (
     <article className="card">
       <Link
-        to={"/worker/" + w.id}
+        to={
+          "/worker/" + w.id + (area ? "?area=" + encodeURIComponent(area) : "")
+        }
         className="stretch"
         aria-label={"View " + w.name + " profile"}
       />
@@ -144,9 +127,14 @@ export function WorkerCard({ w }) {
         )}
       </h3>
       <span className="skill">{w.skill}</span>
+      {w.verified && (
+        <small className="phonelabel">
+          {w.id.startsWith("demo-") ? "Sample profile" : "Phone verified"}
+        </small>
+      )}
       <p className="place">
         <MapPin size={15} />
-        {w.locality}, Mumbai
+        {area && areasOf(w).includes(area) ? area : w.locality}, Mumbai
       </p>
       <div className="facts">
         <strong>{w.priceRange}</strong>
@@ -155,7 +143,7 @@ export function WorkerCard({ w }) {
           {activity(w.lastSeen)}
         </small>
       </div>
-      <Contact w={w} />
+      <Contact w={w} area={area} />
     </article>
   );
 }
@@ -185,24 +173,54 @@ export function Share({ id }) {
   );
 }
 export function Report({ w }) {
-  const [msg, M] = useState("");
+  const [msg, M] = useState(""),
+    [open, O] = useState(false),
+    [reason, R] = useState(reasons[0]),
+    [busy, B] = useState(false);
+  async function submit() {
+    B(true);
+    try {
+      if (!live) {
+        const row = demoWorkers().find((x) => x.id === w.id);
+        demoReview(w.id, {
+          reports: (row?.reports || 0) + 1,
+          reportReason: reason,
+        });
+      } else if (w.id.startsWith("demo-")) {
+        M("This is a sample profile.");
+        O(false);
+        return;
+      } else
+        await api("/worker/" + encodeURIComponent(w.id) + "/report", {
+          method: "POST",
+          body: { reason },
+        });
+      M("Report recorded for review.");
+      O(false);
+    } catch (e) {
+      M(e.message);
+    } finally {
+      B(false);
+    }
+  }
   return (
     <>
-      <button
-        className="textbtn"
-        onClick={async () => {
-          if (!live || w.id.startsWith("demo-"))
-            return M("This is a sample profile.");
-          try {
-            await api("/worker/" + w.id + "/report", { method: "POST" });
-            M("Profile reported for review.");
-          } catch (e) {
-            M(e.message);
-          }
-        }}
-      >
+      <button className="textbtn" onClick={() => O(!open)}>
         <Flag size={15} /> Report this profile
       </button>
+      {open && (
+        <label className="outcome">
+          Reason
+          <select value={reason} onChange={(e) => R(e.target.value)}>
+            {reasons.map((r) => (
+              <option key={r}>{r}</option>
+            ))}
+          </select>
+          <button className="btn light" disabled={busy} onClick={submit}>
+            Send report
+          </button>
+        </label>
+      )}
       {msg && <p role="status">{msg}</p>}
     </>
   );

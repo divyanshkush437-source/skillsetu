@@ -1077,11 +1077,22 @@ dialog::backdrop {
 .searchpanel select {
   min-height: 48px;
 }
-.nearbyhead {
-  margin: 28px 0 12px;
-  font-size: 18px;
-}
-.nearbyhead small {
-  font-weight: 400;
-  opacity: 0.7;
-}
+.recovery{justify-content:center;margin-top:16px}
+.messagebox,.outcome{display:block;margin:14px 0}.messagebox summary{cursor:pointer;padding:15px 0;font-weight:600}.messagebox label,.outcome{display:grid;gap:7px}.messagebox input,.messagebox select,.outcome select{min-height:48px;width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:white;color:inherit}.card .contact{position:relative;z-index:2}.outcome small{line-height:1.5}footer>div>a{min-height:48px;display:inline-flex;align-items:center}
+.phonelabel{display:inline-block;margin-left:8px;font-size:13px}.followup{position:relative;z-index:2;display:inline-flex;align-items:center;min-height:48px;text-decoration:underline}
+
+.languagePicker,.easyStart,.guided button{display:inline-flex;align-items:center;justify-content:center;gap:.55rem;min-height:48px;border:1px solid #babec5;border-radius:12px;background:white;color:#202439;padding:.5rem .8rem;font:inherit;font-weight:650;cursor:pointer}
+.languagePicker{position:relative;margin:0;min-width:0;padding:.2rem .5rem}
+.languagePicker svg{flex-shrink:0}.languagePicker select{margin:0;width:auto;max-width:8rem;min-height:46px;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
+.easyStart{color:#79310d;background:#fff2da;border-color:#dfbd83}
+.guided{min-height:100vh;background:#f4f6f8;color:#202439;font-family:Inter,system-ui,sans-serif}
+.guided header>div{max-width:760px;margin:auto;padding:10px 18px;display:flex;justify-content:space-between;align-items:center}
+.guided main{max-width:760px;margin:auto;padding:16px 18px 48px}.guided h1{font-size:clamp(1.7rem,5vw,2.7rem);margin:1rem 0;line-height:1.35;letter-spacing:normal}
+.guided button{min-height:54px}.guided button:disabled{opacity:.55}.guided button:focus-visible,.guided input:focus-visible,.guided select:focus-visible,.guided textarea:focus-visible,.easyStart:focus-visible{outline:3px solid #2959b2;outline-offset:3px}
+.guided .gBrand{border:0;font-size:1.25rem}.guideTop{display:flex;align-items:center;gap:1rem}.guideTop small{margin-inline-start:auto}.guided .audioGuide{background:#212940;color:white;border:0}.guideBody{margin:1.25rem 0}.guideGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr));gap:.75rem}
+.guided .guideTile{min-height:86px;flex-direction:column;text-align:center;line-height:1.45}.guideTile svg{color:#883d31;width:30px;height:30px}.areas .guideTile{min-height:68px}.areas svg{width:21px;height:21px}
+.guided form,.guided .formbox{display:grid;gap:.75rem}.guided input:not([type=checkbox]),.guided textarea{display:block;width:100%;border:1px solid #abb2bd;border-radius:10px;padding:12px;font:inherit;min-height:52px}.guided textarea{min-height:92px}
+.guided .consentGuide{display:flex;align-items:center;gap:12px;min-height:56px;font:inherit;margin:1rem 0}.consentGuide input{width:24px;height:24px;flex-shrink:0}.guideBody article{background:#fff;padding:1rem;border:1px solid #d0d5de;border-radius:16px;margin:1rem 0}.guided .guideContact{background:#146143;color:#fff;display:flex;width:100%;margin-top:12px}.guided footer{margin-top:2rem;padding:1rem 0;border-top:1px solid #cdd2db;background:transparent}
+@media(max-width:780px){.rightnav{gap:4px}.rightnav>.btn.navy{display:none}.rightnav .languagePicker{display:flex}.rightnav .languagePicker select{max-width:6.4rem}.rightnav .easyStart{display:flex;padding:5px;font-size:13px}.rightnav .easyStart svg{width:16px}.headinner{padding-inline:8px;gap:5px;flex-wrap:wrap}.guided header{height:auto}}
+
+.spokenChoice{display:flex;flex-direction:column;border:1px solid #babec5;border-radius:12px;overflow:hidden;background:white}.spokenChoice .guideTile{border:0;flex:1}.guided .hearChoice{width:100%;min-height:48px;border:0;border-top:1px solid #e0e3e7;border-radius:0;background:#f6f8fb;color:#25456c}.spokenChoice:focus-within{outline:2px solid #2959b2}

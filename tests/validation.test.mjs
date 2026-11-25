@@ -43,21 +43,7 @@ test("Public projection omits account contact fields and database keys", () => {
     PK: "private",
     whatsappLink: "https://wa.me/919876543210",
   });
-  assert.equal(w.whatsappLink, "https://wa.me/919876543210");
+  assert.equal("whatsappLink" in w, false);
   for (const k of ["phone", "whatsapp", "PK", "SK", "alerts"])
     assert.equal(k in w, false);
-});
-import { waMessage, nearbyAreas } from "../backend/validation.mjs";
-test("Pre-filled WhatsApp message names the skill and locality", () => {
-  assert.equal(
-    waMessage("Plumber", "Andheri West"),
-    "Hi, I found you on SkillSetu. I need a plumber in Andheri West. Are you available today?",
-  );
-});
-test("Every locality has listed neighbours and public data includes join date", () => {
-  for (const a of config.areas) {
-    assert.ok(nearbyAreas(a).length > 0, a);
-    for (const b of nearbyAreas(a)) assert.ok(config.areas.includes(b), b);
-  }
-  assert.equal(publicWorker({ ...form, createdAt: "2026-11-01" }).createdAt, "2026-11-01");
 });

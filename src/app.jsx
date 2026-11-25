@@ -1,3 +1,9 @@
+import Guide, { Language } from "./access/Guide";
+import { packs } from "./access/catalog.mjs";
+import { Hand } from "lucide-react";
+import { areasOf, visible, available } from "../backend/listing.mjs";
+import { demoWorkers } from "./data";
+import { localityCounts } from "../backend/coverage.mjs";
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -34,8 +40,6 @@ import {
   route,
   portable,
   activity,
-  nearbyAreas,
-  since,
 } from "./data";
 import {
   Link,
@@ -122,9 +126,11 @@ function Captcha({ accept }) {
 function Directory({ home, hi }) {
   const p = new URLSearchParams(route().search),
     demo = p.has("demo"),
-    dataLocal = demo || !live;
-  const [skill, S] = useState(p.get("skill") || (demo ? "Plumber" : "")),
-    [area, A] = useState(p.get("locality") || (demo ? "Andheri West" : "")),
+    dataLocal = demo || !live,
+    preset =
+      demo && !p.has("skill") && !p.has("locality") && !p.has("allAreas");
+  const [skill, S] = useState(p.get("skill") || (preset ? "Plumber" : "")),
+    [area, A] = useState(p.get("locality") || (preset ? "Andheri West" : "")),
     [avail, V] = useState(p.has("available")),
     [saved, F] = useState(p.has("saved")),
     [sheet, H] = useState(false),
@@ -146,7 +152,13 @@ function Directory({ home, hi }) {
     B(true);
     E("");
     if (dataLocal) {
-      W([...samples, ...(demo ? [] : read("profiles", []))]);
+      W(
+        demoWorkers()
+          .filter((w) => visible(w) && (!demo || w.id.startsWith("demo-")))
+          .map((w) =>
+            w.id.startsWith("demo-") ? w : { ...w, availability: available(w) },
+          ),
+      );
       B(false);
     } else {
       let q = new URLSearchParams();
@@ -168,24 +180,54 @@ function Directory({ home, hi }) {
     if (demo) q.set("demo", "1");
     if (s) q.set("skill", s);
     if (a) q.set("locality", a);
+    else if (demo) q.set("allAreas", "1");
     if (avail) q.set("available", "1");
     if (saved) q.set("saved", "1");
     navigate("/search?" + q);
   }
-  const near = nearbyAreas(activeArea);
-  const matches = workers.filter(
+  let result = workers.filter(
     (w) =>
       (!activeSkill || w.skill === activeSkill) &&
+      (!activeArea || areasOf(w).includes(activeArea)) &&
       (!avail || w.availability) &&
       (!saved || read("favorites", []).includes(w.id)),
   );
-  let result = matches.filter(
-    (w) => !activeArea || w.locality === activeArea,
-  );
-  // Workers travel across neighbouring localities, so show those separately.
-  const nearby = activeArea
-    ? matches.filter((w) => near.includes(w.locality))
-    : [];
+  const [showAreas, setShowAreas] = useState(false);
+  const [alternatives, setAlternatives] = useState(null);
+  const [areaError, setAreaError] = useState("");
+  useEffect(() => {
+    if (!showAreas || saved) return;
+    const controller = new AbortController();
+    setAreaError("");
+    setAlternatives(null);
+    if (dataLocal)
+      setAlternatives(
+        localityCounts(workers, {
+          skill: activeSkill,
+          exclude: activeArea,
+          available: avail,
+        }),
+      );
+    else {
+      const query = new URLSearchParams({
+        view: "localities",
+        skill: activeSkill,
+        exclude: activeArea,
+        available: avail ? "1" : "0",
+      });
+      api("/workers?" + query, {
+        signal: controller.signal,
+        captcha: captchaToken.current,
+      })
+        .then((rows) => {
+          if (!controller.signal.aborted) setAlternatives(rows);
+        })
+        .catch((e) => {
+          if (!controller.signal.aborted) setAreaError(e.message);
+        });
+    }
+    return () => controller.abort();
+  }, [showAreas, saved, dataLocal, workers, activeSkill, activeArea, avail]);
   const fields = (
     <>
       <label>
@@ -337,14 +379,7 @@ function Directory({ home, hi }) {
             <Link to={demo ? "/search?demo=1" : "/search"}>Clear filters</Link>
           </p>
         )}
-        {activeSkill && config.priceGuide[activeSkill] && (
-          <p className="hint">
-            Typical {activeSkill.toLowerCase()} price in Mumbai:{" "}
-            <strong>{config.priceGuide[activeSkill]}</strong>. Agree the final
-            price on WhatsApp before work starts.
-          </p>
-        )}
-        {demo && !activeSkill && !activeArea && (
+        {preset && (
           <p className="hint">
             Three sample profiles. Tap Find workers to apply Plumber + Andheri
             West.
@@ -367,51 +402,112 @@ function Directory({ home, hi }) {
               <button onClick={() => T(tick + 1)}>Retry</button>
             )}
           </div>
+        ) : result.length ? (
+          <div className="grid">
+            {result.map((w) => (
+              <WorkerCard key={w.id} w={w} area={activeArea} />
+            ))}
+          </div>
         ) : (
-          <>
-            {result.length ? (
-              <div className="grid">
-                {result.map((w) => (
-                  <WorkerCard key={w.id} w={w} />
-                ))}
-              </div>
-            ) : (
-              <div className="empty">
-                <SearchIcon />
-                <h3>
-                  {saved
-                    ? "No saved workers match these filters."
-                    : "No workers found in " + (activeArea || "this area") + "."}
-                </h3>
-                <p>
-                  {saved
-                    ? "Use the bookmark on a worker card to save it here."
-                    : nearby.length
-                      ? "These workers in nearby localities may travel to you."
-                      : "Try a nearby locality."}
-                </p>
+          <div className="empty">
+            <SearchIcon />
+            <h3>
+              {saved
+                ? hi
+                  ? "सहेजे गए कारीगर नहीं मिले।"
+                  : "No saved workers match these filters."
+                : avail
+                  ? hi
+                    ? "अभी उपलब्ध कारीगर नहीं मिले।"
+                    : "No workers match the available-now filter."
+                  : hi
+                    ? "इस खोज में कोई कारीगर नहीं मिला।"
+                    : "No workers match this search."}
+            </h3>
+            <div className="actions recovery">
+              {saved && (
+                <button className="btn light" onClick={() => F(false)}>
+                  {hi ? "सहेजे गए का फ़िल्टर हटाएँ" : "Include unsaved workers"}
+                </button>
+              )}
+              {avail && (
+                <button className="btn light" onClick={() => V(false)}>
+                  {hi ? "सभी उपलब्धताएँ देखें" : "Include unavailable workers"}
+                </button>
+              )}
+              {activeArea && !saved && (
+                <button
+                  className="btn light"
+                  onClick={() => setShowAreas(!showAreas)}
+                  aria-expanded={showAreas}
+                >
+                  {hi ? "दूसरे इलाके देखें" : "Check other localities"}
+                </button>
+              )}
+              {!(demo && live) && (
+                <Link
+                  className="btn primary"
+                  to={
+                    "/post-job?" +
+                    new URLSearchParams({
+                      skill: activeSkill,
+                      locality: activeArea,
+                    })
+                  }
+                >
+                  {hi ? "अपने इलाके में काम पोस्ट करें" : "Post a local job"}
+                </Link>
+              )}
+            </div>
+            {showAreas && !saved && (
+              <div aria-live="polite">
+                {areaError ? (
+                  <p>
+                    {areaError}{" "}
+                    <button
+                      className="btn light"
+                      onClick={() => setShowAreas(false)}
+                    >
+                      Close
+                    </button>
+                  </p>
+                ) : !alternatives ? (
+                  <p>Checking listings…</p>
+                ) : alternatives.length ? (
+                  <>
+                    <p>
+                      {hi
+                        ? "इन इलाकों में प्रोफ़ाइल हैं। आने की पुष्टि कारीगर से करें।"
+                        : "These localities have matching profiles. Ask the worker whether they can travel to you."}
+                    </p>
+                    <div className="actions recovery">
+                      {alternatives.map(({ locality, count }) => (
+                        <button
+                          key={locality}
+                          className="chip"
+                          onClick={() => search(activeSkill, locality)}
+                        >
+                          {locality} ({count})
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p>
+                    {hi
+                      ? "दूसरे इलाकों में भी कोई मेल नहीं मिला।"
+                      : "No matching profiles in other localities yet."}
+                  </p>
+                )}
               </div>
             )}
-            {nearby.length > 0 && (
-              <>
-                <h3 className="nearbyhead">
-                  {hi ? "आस-पास के इलाके" : "Also nearby"} ·{" "}
-                  <small>{near.join(", ")}</small>
-                </h3>
-                <div className="grid">
-                  {nearby.map((w) => (
-                    <WorkerCard key={w.id} w={w} />
-                  ))}
-                </div>
-              </>
-            )}
-          </>
+          </div>
         )}
       </section>
       {home && (
         <section className="impact">
           <div>
-            <b>450M+</b>Blue-collar workers
+            <b>{config.areas.length} localities</b>In the Mumbai directory
           </div>
           <div>
             <b>0%</b>Commission
@@ -441,8 +537,15 @@ function Profile({ id }) {
     W(null);
     const sample = samples.find((x) => x.id === id);
     if (sample || !live) {
-      const found = sample || read("profiles", []).find((x) => x.id === id);
-      if (found) W(found);
+      const found = (live ? samples : demoWorkers()).find(
+        (x) => x.id === id && visible(x),
+      );
+      if (found)
+        W(
+          found.id.startsWith("demo-")
+            ? found
+            : { ...found, availability: available(found) },
+        );
       else E("This profile could not be found.");
     } else
       api("/worker/" + encodeURIComponent(id), { signal: c.signal })
@@ -486,11 +589,17 @@ function Profile({ id }) {
                 ["Experience", w.experience],
                 ["Price range", w.priceRange],
                 ["Last seen", activity(w.lastSeen)],
-                ["Joined", since(w.createdAt)],
+                ["Service areas", areasOf(w).join(", ")],
                 [
-                  "Usual reply time",
-                  w.replyTime || "New listing · not known yet",
+                  "Listed since",
+                  w.createdAt
+                    ? new Date(w.createdAt).toLocaleDateString("en-IN", {
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "Date unavailable",
                 ],
+                ["Reply time", "Unknown"],
               ].map(([k, v]) => (
                 <div key={k}>
                   <small>{k}</small>
@@ -504,23 +613,17 @@ function Profile({ id }) {
                 {id.startsWith("demo-") ? "· sample profile" : ""}
               </p>
             )}
-            {config.priceGuide[w.skill] && (
-              <p className="hint">
-                Typical {w.skill.toLowerCase()} price in Mumbai:{" "}
-                {config.priceGuide[w.skill]}. Agree the price on WhatsApp
-                before work starts.
-              </p>
-            )}
-            <p className="hint">
-              SkillSetu checks the phone number only. There is no background
-              check yet, so meet first and pay after the work is done.
-            </p>
             {w.contacts && <p>{w.contacts} enquiries · demo count</p>}
-            <div className="stickycontact">
-              <Contact w={w} />
-            </div>
+            <Contact
+              w={w}
+              detail
+              area={new URLSearchParams(route().search).get("area")}
+            />
             <small>
-              WhatsApp opens a draft. Tap send to contact the worker.
+              Phone verification covers the sign-in number. Background checks,
+              insurance and a re-service guarantee are unavailable. Confirm the
+              final fee before work starts. WhatsApp opens a draft for you to
+              send.
             </small>
             <div className="actions">
               <Share id={id} />
@@ -534,6 +637,11 @@ function Profile({ id }) {
   );
 }
 function App() {
+  const [locale,setLocale]=useState(()=>read("language",read("hi",false)?"hi":"en"));
+  const [easy,setEasy]=useState(()=>read("easy",false)||new URLSearchParams(route().search).get("easy")==="1");
+  const pack=packs[locale]||packs.en;
+  function choose(code){setLocale(code);save("language",code);setEasy(true);save("easy",true);}
+  function exitGuide(){setEasy(false);save("easy",false);setLocale("en");save("language","en");L(false);save("hi",false);}
   const [url, U] = useState(route().pathname + route().search),
     [hi, L] = useState(read("hi", false)),
     [modal, M] = useState(""),
@@ -558,8 +666,9 @@ function App() {
     };
   }, []);
   useEffect(() => {
-    document.documentElement.lang = hi ? "hi" : "en";
-  }, [hi]);
+    document.documentElement.lang = easy && !url.startsWith("/admin") ? pack.code : hi ? "hi" : "en";
+    document.documentElement.dir = easy && pack.rtl && !url.startsWith("/admin") ? "rtl" : "ltr";
+  }, [hi,easy,pack,url]);
   const path = url.split("?")[0],
     links = (
       <>
@@ -573,6 +682,7 @@ function App() {
         <Link to="/dashboard">{hi ? "डैशबोर्ड" : "Dashboard"}</Link>
       </>
     );
+  if(easy && path!=="/admin") return <Guide key={url} path={path} pack={pack} change={choose} exit={exitGuide}/>;
   return (
     <>
       <header>
@@ -580,17 +690,8 @@ function App() {
           <Mark />
           <nav>{links}</nav>
           <div className="rightnav">
-            <button
-              className="lang"
-              onClick={() => {
-                L(!hi);
-                save("hi", !hi);
-                document.documentElement.lang = hi ? "en" : "hi";
-              }}
-            >
-              <Globe2 size={16} />
-              {hi ? "English" : "हिंदी"}
-            </button>
+            <Language code={locale} change={choose}/>
+            <button className="easyStart" onClick={()=>choose(locale)}><Hand size={20}/>Easy mode</button>
             <Link className="btn navy" to="/register">
               {hi ? "कारीगर बनें" : "Join as a worker"}
               <ArrowUpRight size={16} />
@@ -622,7 +723,9 @@ function App() {
           <Directory home={path === "/"} hi={hi} />
         ) : path.startsWith("/worker/") ? (
           <Profile id={path.slice(8)} />
-        ) : ["/register", "/post-job", "/dashboard"].includes(path) ? (
+        ) : ["/register", "/post-job", "/dashboard", "/admin"].includes(
+            path,
+          ) ? (
           <Suspense fallback={<Skeleton />}>
             <Account path={path} hi={hi} />
           </Suspense>
@@ -636,15 +739,14 @@ function App() {
       <footer>
         <div>
           <Mark />
-          <span>
-            Commission saved per booking: ₹200–800 <small>(estimate)</small>
-          </span>
+          <span>SkillSetu commission on an ₹800 job: ₹0</span>
         </div>
         <div>
           <button onClick={() => M("Architecture")}>
             <Network size={16} />
             Architecture
           </button>
+          <Link to="/admin">{live ? "Reviewer access" : "Demo reviewer"}</Link>
           <button onClick={() => M("Roadmap")}>
             Roadmap
             <ArrowUpRight size={14} />
@@ -691,8 +793,8 @@ function App() {
                 planned.
               </p>
               <p>
-                Coming soon: Aadhaar verification, UPI token booking, GPS-based
-                matching.
+                Future options include identity checks, booking deposits and
+                travel-time matching. These need a separate pilot.
               </p>
               <p>
                 Today, choose a locality and agree the job and price directly on

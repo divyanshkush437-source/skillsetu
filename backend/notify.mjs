@@ -1,21 +1,23 @@
+import { candidateIds, currentWorkers } from "./directory.mjs";
+import { visible, areasOf } from "./listing.mjs";
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
-import {
-  byTrade,
-  workers,
-  get,
-  db,
-  state,
-  PutCommand,
-  now,
-} from "./common.mjs";
+import { get, db, state, PutCommand, now } from "./common.mjs";
 const sns = new SNSClient({}),
   ses = new SESClient({});
 export const handler = async (event) => {
   for (const record of event.Records) {
     if (record.eventName !== "INSERT") continue;
     const job = record.dynamodb.NewImage;
-    const matched = await byTrade(workers, job.skill.S, job.locality.S);
+    if (job.SK?.S !== "post") continue;
+    const matched = (
+      await currentWorkers(await candidateIds(job.skill.S))
+    ).filter(
+      (w) =>
+        visible(w) &&
+        w.skill === job.skill.S &&
+        areasOf(w).includes(job.locality.S),
+    );
     for (const w of matched) {
       if (!w.alerts) continue;
       const PK = "sent#" + job.id.S + "#" + w.id;

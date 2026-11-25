@@ -1,3 +1,8 @@
+import { asciiDigits } from "./access/digits.mjs";
+import VerifyContact, { canonical } from "./verify-contact";
+import Review from "./review";
+import { areasOf, visible, available } from "../backend/listing.mjs";
+import { demoWorkers } from "./data";
 import React, { useEffect, useState, useRef } from "react";
 import {
   ArrowLeft,
@@ -10,7 +15,7 @@ import {
   PhoneCall,
   Check,
 } from "lucide-react";
-import { config, api, live, read, save, navigate, wa } from "./data";
+import { config, api, live, read, save, navigate, wa, route } from "./data";
 import {
   Avatar,
   Availability,
@@ -20,6 +25,8 @@ import {
   WorkerCard,
   Skeleton,
 } from "./ui";
+import { predict } from "../backend/skill-model.mjs";
+import trainedSkills from "../backend/trained-skills.json";
 import { firebaseAuth } from "./auth";
 function Toggle({ value, change, disabled }) {
   return (
@@ -31,12 +38,19 @@ function Toggle({ value, change, disabled }) {
       disabled={disabled}
       onClick={() => change(!value)}
     >
-      <span>{value ? "Available now" : "Not available"}</span>
+      <span>
+        {value === null
+          ? "Confirm availability"
+          : value
+            ? "Available now"
+            : "Not available"}
+      </span>
       <i />
     </button>
   );
 }
-function Auth({ ready }) {
+export function Auth({ ready, pack }) {
+  const t = pack?.t;
   const [phone, P] = useState(""),
     [code, C] = useState(""),
     [confirm, Q] = useState(null),
@@ -77,40 +91,40 @@ function Auth({ ready }) {
       <span className="roundicon">
         <Phone />
       </span>
-      <h2>{live ? "Verify your phone" : "Try the worker flow"}</h2>
+      <h2>{t ? (live ? t.phone : t.local) : live ? "Verify your phone" : "Try the worker flow"}</h2>
       {live ? (
         <form onSubmit={submit}>
-          <p>
+          <p lang="en">
             Google uses your phone number for verification and abuse prevention.
             SMS charges may apply.
           </p>
           {confirm ? (
             <label>
-              6-digit OTP
+              {t?.otp || "6-digit OTP"}
               <input
                 required
                 inputMode="numeric"
                 pattern="[0-9]{6}"
                 value={code}
-                onChange={(e) => C(e.target.value)}
+                onChange={(e) => C(asciiDigits(e.target.value))}
               />
             </label>
           ) : (
             <label>
-              Mobile number (+91)
+              {t?.phone || "Mobile number"} (+91)
               <input
                 type="tel"
                 required
                 pattern="[6-9][0-9]{9}"
                 maxLength="10"
                 value={phone}
-                onChange={(e) => P(e.target.value)}
+                onChange={(e) => P(asciiDigits(e.target.value))}
               />
             </label>
           )}
           <div id="recaptcha" />
           <button className="btn primary" disabled={busy}>
-            {busy ? "Please wait…" : confirm ? "Verify code" : "Send OTP"}
+            {busy ? (t?.loading || "Please wait…") : confirm ? (t?.verify || "Verify code") : (t?.send || "Send OTP")}
           </button>
           {confirm && (
             <button
@@ -121,13 +135,13 @@ function Auth({ ready }) {
                 C("");
               }}
             >
-              Change number or resend
+              {t?.again || "Change number or resend"}
             </button>
           )}
         </form>
       ) : (
         <>
-          <p>
+          <p lang="en">
             Explore with a demo account. Changes stay on this device. No OTP or
             job alerts are sent.
           </p>
@@ -139,7 +153,7 @@ function Auth({ ready }) {
               ready(u);
             }}
           >
-            Continue in demo mode <ArrowRight size={16} />
+            {t?.demo || "Continue in demo mode"} <ArrowRight size={16} />
           </button>
         </>
       )}
@@ -158,30 +172,46 @@ function ProfileForm({ user, own, hi }) {
       name: own?.name || "",
       skill: own?.skill || "",
       locality: own?.locality || "",
-      priceRange: own?.priceRange || config.prices[0],
-      experience: own?.experience || config.experience[0],
+      serviceAreas: (own?.serviceAreas || []).filter(
+        (a) => a !== own?.locality,
+      ),
+      listed: own?.listed ?? false,
+      priceRange: own?.priceRange || "Ask for estimate",
+      experience: own?.experience || "Not specified",
       whatsapp:
         own?.whatsapp ||
         own?.whatsappLink?.match(/wa.me\/(\d+)/)?.[1] ||
         user.phoneNumber,
       alerts: own?.alerts ?? false,
-      availability: own?.availability ?? true,
+      availability: own?.availability ?? false,
     }),
   );
   const [step, S] = useState(1),
     [err, E] = useState(""),
     [busy, B] = useState(false);
+  const [proof, setProof] = useState(null);
+  const number = canonical(f.whatsapp);
+  const needsProof =
+    live &&
+    number !== user.phoneNumber &&
+    !(own?.contactVerified && number === own.whatsapp) &&
+    proof?.number !== number;
   function field(k, v) {
     const n = { ...f, [k]: v };
+    if (k === "locality")
+      n.serviceAreas = (n.serviceAreas || []).filter((a) => a !== v);
     F(n);
     save(draft, n);
   }
   const candidate = {
     ...f,
+    listed: f.listed ?? false,
+    createdAt: own?.createdAt || new Date().toISOString(),
+    confirmedAt: new Date().toISOString(),
     id: user.uid,
     verified: live,
     lastSeen: "just now",
-    whatsappLink: wa(f.whatsapp, f.skill, f.locality),
+    whatsappLink: wa(f.whatsapp, f.skill),
   };
   async function next(e) {
     e.preventDefault();
@@ -190,25 +220,35 @@ function ProfileForm({ user, own, hi }) {
       return E(
         "Enter your name, choose your skill and select a listed locality.",
       );
+    if (step === 2 && needsProof)
+      return E("Verify your work number or use your sign-in number.");
     if (step < 3) {
-      S(step + 1);
+      S(
+        step === 1 && e.nativeEvent.submitter?.value === "quick" && !needsProof
+          ? 3
+          : step + 1,
+      );
       return;
     }
     B(true);
     try {
       let id = user.uid;
       if (live) {
-        id = (await api("/worker", { method: "POST", body: f, user })).id;
+        id = (
+          await api("/worker", {
+            method: "POST",
+            body: {
+              ...f,
+              listed: f.listed ?? false,
+              contactProof: proof?.number === number ? proof.token : undefined,
+            },
+            user,
+          })
+        ).id;
       } else {
         save("profiles", [
           ...read("profiles", []).filter((x) => x.id !== id),
-          {
-            ...candidate,
-            lastSeen: new Date().toISOString(),
-            createdAt:
-              read("profiles", []).find((x) => x.id === id)?.createdAt ||
-              new Date().toISOString(),
-          },
+          { ...candidate, lastSeen: new Date().toISOString() },
         ]);
       }
       localStorage.removeItem("ss-" + draft);
@@ -225,6 +265,11 @@ function ProfileForm({ user, own, hi }) {
         <span />
         {step === 3 ? "PROFILE PREVIEW" : "STEP " + step + " OF 2"}
       </div>
+      <p>
+        {hi
+          ? "इस प्रोटोटाइप में प्रोफ़ाइल और काम की पूछताछ मुफ़्त हैं।"
+          : "Free to list and receive enquiries. You agree the price directly with the household."}
+      </p>
       <h2>
         {step === 1
           ? "Your work details"
@@ -245,7 +290,9 @@ function ProfileForm({ user, own, hi }) {
             />
           </label>
           <fieldset>
-            <legend>Aap kya kaam karte ho?</legend>
+            <legend>
+              {hi ? "आप क्या काम करते हैं?" : "Aap kya kaam karte ho?"}
+            </legend>
             <div className="choices">
               {config.skills.map((s, i) => {
                 const Icon = tradeIcons[i] || BriefcaseBusiness;
@@ -258,14 +305,29 @@ function ProfileForm({ user, own, hi }) {
                     onClick={() => field("skill", s)}
                   >
                     <Icon size={18} />
-                    {s}
+                    {hi
+                      ? [
+                          "प्लंबर",
+                          "इलेक्ट्रीशियन",
+                          "बढ़ई",
+                          "सफाई",
+                          "रसोइया",
+                          "पेंटर",
+                          "ड्राइवर",
+                          "डिलीवरी",
+                          "एसी मरम्मत",
+                          "अन्य",
+                        ][i] || s
+                      : s}
                   </button>
                 );
               })}
             </div>
           </fieldset>
           <label>
-            Aap kahan rehte ho?
+            {hi
+              ? "आप किस इलाके में काम करते हैं?"
+              : "Aap kis area mein kaam karte ho?"}
             <input
               list="localities"
               required
@@ -279,11 +341,55 @@ function ProfileForm({ user, own, hi }) {
               ))}
             </datalist>
           </label>
+          <details className="messagebox">
+            <summary>
+              {hi
+                ? "दूसरे सेवा क्षेत्र जोड़ें"
+                : "Add other areas you serve (optional)"}
+            </summary>
+            <p>Choose up to two more areas you regularly travel to.</p>
+            {(f.serviceAreas || []).map((a) => (
+              <button
+                key={a}
+                type="button"
+                className="chip"
+                onClick={() =>
+                  field(
+                    "serviceAreas",
+                    f.serviceAreas.filter((x) => x !== a),
+                  )
+                }
+              >
+                {a} ×
+              </button>
+            ))}
+            {(f.serviceAreas || []).length < 2 && (
+              <select
+                aria-label="Add service area"
+                value=""
+                onChange={(e) =>
+                  field("serviceAreas", [
+                    ...(f.serviceAreas || []),
+                    e.target.value,
+                  ])
+                }
+              >
+                <option value="">Choose an additional area</option>
+                {config.areas
+                  .filter(
+                    (a) => a !== f.locality && !f.serviceAreas?.includes(a),
+                  )
+                  .map((a) => (
+                    <option key={a}>{a}</option>
+                  ))}
+              </select>
+            )}
+          </details>
         </>
       ) : step === 2 ? (
         <>
           <label>
-            Experience
+            {hi ? "काम का अनुभव" : "Experience"}
             <select
               value={f.experience}
               onChange={(e) => field("experience", e.target.value)}
@@ -294,7 +400,9 @@ function ProfileForm({ user, own, hi }) {
             </select>
           </label>
           <fieldset>
-            <legend>Aapki fee kitni hai?</legend>
+            <legend>
+              {hi ? "आपकी फीस कितनी है?" : "Aapki fee kitni hai?"}
+            </legend>
             <div className="choices">
               {config.prices.map((x) => (
                 <button
@@ -309,7 +417,7 @@ function ProfileForm({ user, own, hi }) {
             </div>
           </fieldset>
           <label>
-            WhatsApp number
+            {hi ? "काम के लिए WhatsApp नंबर" : "WhatsApp number"}
             <input
               type="tel"
               required
@@ -317,10 +425,18 @@ function ProfileForm({ user, own, hi }) {
               value={f.whatsapp}
               onChange={(e) => field("whatsapp", e.target.value)}
             />
-            <small>Clients will contact you on this number.</small>
+            <small>
+              Anyone requesting contact can see this WhatsApp number. You can
+              use a work number.
+            </small>
           </label>
+          {needsProof && /^\+[1-9]\d{7,14}$/.test(number) && (
+            <VerifyContact key={number} number={number} onVerified={setProof} />
+          )}
           <fieldset>
-            <legend>Kya aap abhi available ho?</legend>
+            <legend>
+              {hi ? "क्या आप अभी उपलब्ध हैं?" : "Kya aap abhi available ho?"}
+            </legend>
             <Toggle
               value={f.availability}
               change={(v) => field("availability", v)}
@@ -347,10 +463,35 @@ function ProfileForm({ user, own, hi }) {
           </p>
           <Availability value={f.availability} />
           <p>WhatsApp: {f.whatsapp}</p>
+          <p>Service areas: {areasOf(f).join(", ")}</p>
+          <p>
+            No fee to list, receive enquiries or complete work in this
+            prototype.
+          </p>
+          <label className="optin">
+            <input
+              type="checkbox"
+              checked={f.listed ?? false}
+              onChange={(e) => field("listed", e.target.checked)}
+            />
+            Show my profile publicly and let households request my WhatsApp
+            number
+          </label>
+          {f.listed === false && (
+            <p>
+              Your profile will be saved privately. You can show it from the
+              dashboard later.
+            </p>
+          )}
         </div>
       )}
       {err && <p className="error">{err}</p>}
       <div className="actions">
+        {step === 1 && (
+          <button className="btn light" type="submit" value="quick">
+            {hi ? "सीधे प्रोफ़ाइल देखें" : "Skip optional details"}
+          </button>
+        )}
         {step > 1 && (
           <button
             type="button"
@@ -367,7 +508,9 @@ function ProfileForm({ user, own, hi }) {
               ? "Continue"
               : step === 2
                 ? "Preview profile"
-                : "Publish profile"}
+                : f.listed === false
+                  ? "Save private profile"
+                  : "Publish profile"}
           <ArrowRight size={16} />
         </button>
       </div>
@@ -379,6 +522,18 @@ function JobForm({ user }) {
     [err, E] = useState(""),
     [busy, B] = useState(false);
   const key = useRef(crypto.randomUUID());
+  const [description, setDescription] = useState("");
+  const params = new URLSearchParams(route().search);
+  const [selected, setSelected] = useState(() =>
+    config.skills.includes(params.get("skill")) ? params.get("skill") : "",
+  );
+  const initialArea = config.areas.includes(params.get("locality"))
+    ? params.get("locality")
+    : "";
+  const suggested = React.useMemo(
+    () => predict(trainedSkills, description),
+    [description],
+  );
   async function post(e) {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
@@ -418,22 +573,6 @@ function JobForm({ user }) {
     </section>
   ) : (
     <form className="formbox" onSubmit={post}>
-      {[
-        ["Skill needed", "skill", config.skills],
-        ["Locality", "locality", config.areas],
-      ].map(([label, k, items]) => (
-        <label key={k}>
-          {label}
-          <select required name={k} defaultValue="">
-            <option disabled value="">
-              Choose {label.toLowerCase()}
-            </option>
-            {items.map((x) => (
-              <option key={x}>{x}</option>
-            ))}
-          </select>
-        </label>
-      ))}
       <label>
         What do you need help with?
         <textarea
@@ -443,7 +582,41 @@ function JobForm({ user }) {
           maxLength="500"
           rows="4"
           placeholder="e.g. Repair a leaking kitchen tap"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
         />
+      </label>
+      <label>
+        Skill needed
+        <select
+          required
+          name="skill"
+          value={selected || suggested || ""}
+          onChange={(e) => setSelected(e.target.value)}
+        >
+          <option disabled value="">
+            Choose skill
+          </option>
+          {config.skills.map((s) => (
+            <option key={s}>{s}</option>
+          ))}
+        </select>
+        {suggested && !selected && (
+          <small role="status">
+            Suggested from your description. You can change it.
+          </small>
+        )}
+      </label>
+      <label>
+        Locality
+        <select required name="locality" defaultValue={initialArea}>
+          <option disabled value="">
+            Choose locality
+          </option>
+          {config.areas.map((a) => (
+            <option key={a}>{a}</option>
+          ))}
+        </select>
       </label>
       <label>
         Callback number
@@ -464,12 +637,17 @@ function JobForm({ user }) {
   );
 }
 function Dashboard({ user, own }) {
-  const [w, W] = useState(own),
+  const [w, W] = useState(() =>
+      !live && own ? { ...own, availability: available(own) } : own,
+    ),
     [jobs, J] = useState(null),
     [err, E] = useState(""),
     [busy, B] = useState(false);
   useEffect(() => {
-    if (!w) return;
+    if (!visible(w)) {
+      J([]);
+      return;
+    }
     let active = true;
     if (live)
       api("/jobs", { user })
@@ -480,14 +658,15 @@ function Dashboard({ user, own }) {
         read("jobs", []).filter(
           (j) =>
             j.skill === w.skill &&
-            j.locality === w.locality &&
+            visible(w) &&
+            areasOf(w).includes(j.locality) &&
             Date.parse(j.createdAt) > Date.now() - 604800000,
         ),
       );
     return () => {
       active = false;
     };
-  }, [user, own]);
+  }, [user, own, w?.listed]);
   if (!w)
     return (
       <section className="formbox">
@@ -500,7 +679,7 @@ function Dashboard({ user, own }) {
     );
   async function toggle(value) {
     const old = w,
-      n = { ...w, availability: value };
+      n = { ...w, availability: value, confirmedAt: new Date().toISOString() };
     W(n);
     B(true);
     E("");
@@ -527,12 +706,51 @@ function Dashboard({ user, own }) {
     <>
       <section className="formbox">
         <h2>Kya aap abhi available ho?</h2>
+        <p>Confirm availability once a day to appear under Available now.</p>
         <Toggle value={w.availability} change={toggle} disabled={busy} />
+        {!visible(w) && (
+          <p role="status">
+            {w.moderation === "hidden"
+              ? "This listing is hidden by a reviewer."
+              : "Your listing is private."}
+          </p>
+        )}
         <h3>{w.name}</h3>
         <p>
           {w.skill} · {w.locality} · {w.priceRange}
         </p>
         <div className="actions">
+          <button
+            className="btn light"
+            disabled={busy}
+            onClick={async () => {
+              B(true);
+              E("");
+              try {
+                const listed = w.listed === false;
+                if (live)
+                  await api(
+                    "/worker/" + encodeURIComponent(w.id) + "/visibility",
+                    { method: "PATCH", user, body: { listed } },
+                  );
+                else
+                  save(
+                    "profiles",
+                    read("profiles", []).map((x) =>
+                      x.id === w.id ? { ...x, listed } : x,
+                    ),
+                  );
+                W({ ...w, listed });
+                if (!listed) J([]);
+              } catch (e) {
+                E(e.message);
+              } finally {
+                B(false);
+              }
+            }}
+          >
+            {w.listed === false ? "Show my listing" : "Pause my listing"}
+          </button>
           <Link className="btn navy" to={"/worker/" + w.id}>
             View profile
           </Link>
@@ -590,11 +808,11 @@ export default function Account({ path, hi }) {
   const [pending, P] = useState(true);
   useEffect(() => {
     let active = true;
-    if (user && path !== "/post-job") {
+    if (user && path !== "/post-job" && path !== "/admin") {
       P(true);
       (live
         ? api("/me", { user })
-        : Promise.resolve(read("profiles", []).find((x) => x.id === user.uid))
+        : Promise.resolve(demoWorkers().find((x) => x.id === user.uid))
       )
         .then((w) => active && W(w))
         .catch((e) => active && E(e.message))
@@ -615,19 +833,23 @@ export default function Account({ path, hi }) {
         {live ? "SKILLSETU" : "DEVICE DEMO"} / {config.city.toUpperCase()}
       </div>
       <h1>
-        {path === "/register"
-          ? hi
-            ? "अपनी प्रोफ़ाइल बनाएं"
-            : "Your worker profile"
-          : path === "/post-job"
+        {path === "/admin"
+          ? "Review and pilot results"
+          : path === "/register"
             ? hi
-              ? "काम पोस्ट करें"
-              : "Post a local job"
-            : hi
-              ? "आपका डैशबोर्ड"
-              : "Worker dashboard"}
+              ? "अपनी प्रोफ़ाइल बनाएं"
+              : "Your worker profile"
+            : path === "/post-job"
+              ? hi
+                ? "काम पोस्ट करें"
+                : "Post a local job"
+              : hi
+                ? "आपका डैशबोर्ड"
+                : "Worker dashboard"}
       </h1>
-      {err ? (
+      {path === "/admin" && !live ? (
+        <Review user={null} />
+      ) : err ? (
         <div className="notice">
           {err} <button onClick={() => location.reload()}>Retry</button>
         </div>
@@ -635,6 +857,8 @@ export default function Account({ path, hi }) {
         <Skeleton />
       ) : !user ? (
         <Auth ready={U} />
+      ) : path === "/admin" ? (
+        <Review user={user} />
       ) : path === "/register" ? (
         <ProfileForm user={user} own={own} hi={hi} />
       ) : path === "/post-job" ? (

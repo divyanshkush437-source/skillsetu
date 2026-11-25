@@ -1,7 +1,8 @@
+import { candidateIds, currentWorkers } from "./directory.mjs";
+import { visible, areasOf } from "./listing.mjs";
+import { localityCounts } from "./coverage.mjs";
 import {
   endpoint,
-  query,
-  byTrade,
   db,
   get,
   state,
@@ -12,35 +13,21 @@ import {
   increment,
   secret,
 } from "./common.mjs";
-import {
-  publicWorker,
-  publicFields as fields,
-  allowed,
-  config,
-  reject,
-  nearbyAreas,
-} from "./validation.mjs";
-// A locality search also returns workers from neighbouring localities;
-// the app shows them under "Also nearby".
-function inArea(skill, area) {
-  return skill
-    ? byTrade(workers, skill, area, projection)
-    : query({
-        TableName: workers,
-        IndexName: "locality-index",
-        KeyConditionExpression: "areaKey = :a",
-        ExpressionAttributeValues: { ":a": "locality#" + area },
-        ...projection,
-      });
-}
-const projection = {
-  ProjectionExpression: fields.map((_, i) => "#f" + i).join(","),
-  ExpressionAttributeNames: Object.fromEntries(
-    fields.map((k, i) => ["#f" + i, k]),
-  ),
-};
+import { publicWorker, allowed, config, reject } from "./validation.mjs";
 export const handler = endpoint(async ({ event, ip }) => {
-  const { skill = "", locality = "" } = event.queryStringParameters || {};
+  const {
+    skill = "",
+    locality = "",
+    view,
+    exclude = "",
+    available,
+  } = event.queryStringParameters || {};
+  const coverage = view === "localities";
+  if (coverage && exclude) allowed(exclude, config.areas);
+  const present = (rows) =>
+    coverage
+      ? localityCounts(rows, { skill, exclude, available: available === "1" })
+      : rows;
   if (skill) allowed(skill, config.skills);
   if (locality) allowed(locality, config.areas);
   if (
@@ -63,35 +50,31 @@ export const handler = endpoint(async ({ event, ip }) => {
     if (!(await r.json()).success)
       reject("Complete the search verification.", 429);
   }
-  const PK = "search#" + hash(JSON.stringify([skill, locality]));
+  const PK = "candidates-v2#" + skill;
   const cached = await get(state, { PK });
-  if (cached?.expiresAt > now()) return cached.rows;
-  const rows = locality
-    ? (
-        await Promise.all(
-          [locality, ...nearbyAreas(locality)].map((a) => inArea(skill, a)),
-        )
-      ).flat()
-    : skill
-      ? await byTrade(workers, skill, "", projection)
-      : (
-          await Promise.all(
-            config.skills.map((s) => byTrade(workers, s, "", projection)),
-          )
-        ).flat();
-  const shaped = rows
+  let ids = cached?.expiresAt > now() ? cached.ids : null;
+  if (!ids) {
+    ids = await candidateIds(skill);
+    if (Buffer.byteLength(JSON.stringify(ids)) < 300000)
+      await db.send(
+        new PutCommand({
+          TableName: state,
+          Item: { PK, ids, expiresAt: now() + 60 },
+        }),
+      );
+  }
+  const rows = (await currentWorkers(ids))
+    .filter(
+      (w) =>
+        visible(w) &&
+        (!skill || w.skill === skill) &&
+        (!locality || areasOf(w).includes(locality)),
+    )
     .map(publicWorker)
     .sort(
       (a, b) =>
         Number(b.availability) - Number(a.availability) ||
         a.name.localeCompare(b.name),
     );
-  if (Buffer.byteLength(JSON.stringify(shaped)) < 300000)
-    await db.send(
-      new PutCommand({
-        TableName: state,
-        Item: { PK, rows: shaped, expiresAt: now() + 60 },
-      }),
-    );
-  return shaped;
+  return present(rows);
 });
