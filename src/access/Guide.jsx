@@ -2,7 +2,7 @@ import areaNames from "./areas.json";
 import React,{useEffect,useRef,useState} from "react";
 import {Globe2,Home,Volume2,Square,ChevronLeft,Search,BriefcaseBusiness,MapPin,UserRound,ClipboardList,ArrowRight,MessageCircle,Hand,Check} from "lucide-react";
 import {packs} from "./catalog.mjs";
-import {speechChunks} from "./audio.mjs";
+import {speechChunks,findBrowserVoice} from "./audio.mjs";
 import {config,api,live,read,save,navigate,demoWorkers,wa,route} from "../data";
 import {tradeIcons} from "../ui";
 const Auth=React.lazy(()=>import("../account").then(m=>({default:m.Auth})));
@@ -32,7 +32,9 @@ function AudioGuide({pack,words,speaker}){
     stop();
     const attempt=request.current;
     const synth=window.speechSynthesis;
-    const voice=synth?.getVoices().find(v=>v.lang.toLowerCase().split(/[-_]/)[0]===pack.code);
+    setState("loading");
+    const voice=await findBrowserVoice(synth,pack.code);
+    if(request.current!==attempt)return;
     if(voice && window.SpeechSynthesisUtterance){
       const line=new SpeechSynthesisUtterance(message);
       line.voice=voice;line.lang=voice.lang;line.rate=.85;
