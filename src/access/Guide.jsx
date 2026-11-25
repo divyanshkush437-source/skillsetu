@@ -105,7 +105,7 @@ export default function Guide({path,pack,change,exit}){
     return <div className="spokenChoice" key={value}><Tile icon={icons?.[index]||MapPin} onClick={()=>act(value)}>{label}</Tile><button className="hearChoice" aria-label={t.listen+" · "+label} onClick={()=>speaker.current?.(label)}><Volume2 size={19}/></button></div>;
   });
   const areaChoices=config.areas;
-  const words=[title,...(phase==="trade"?config.skills.map(v=>t[v]):phase==="area"?areaChoices.map(areaLabel):phase==="home"?[t.find,t.join,t.post,t.dashboard]:phase==="review"?[t[skill],areaLabel(area),join?t.consent:t.request]:phase==="results"||id?workers.flatMap(w=>[w.name,t[w.skill],areaLabel(w.locality),t.contact]):phase==="phone"?[live?t.send:t.demo]:[])].join(". ");
+  const words=[title,...(phase==="trade"?config.skills.map(v=>t[v]):phase==="area"?[]:phase==="home"?[t.find,t.join,t.post,t.dashboard]:phase==="review"?[t[skill],areaLabel(area),join?t.consent:t.request]:phase==="results"||id?workers.slice(0,3).flatMap(w=>[w.name,t[w.skill],areaLabel(w.locality),t.contact]):phase==="phone"?[live?t.send:t.demo]:[])].join(". ");
   useEffect(()=>{heading.current?.focus({preventScroll:true});},[phase]);
   function back(){
     E("");

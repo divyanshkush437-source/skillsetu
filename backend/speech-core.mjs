@@ -1,6 +1,6 @@
 // BHASHINI resolves the TTS model for each language before synthesis.
 const configEndpoint = "https://meity-auth.ulcacontrib.org/ulca/apis/v0/model/getModelsPipeline";
-const defaultPipeline = "64392f96daac500b55c543cd";
+const defaultPipelines = ["660fa5bec7fb5b0328229016", "64392f96daac500b55c543cd"];
 const allowedCodes = new Set("en as bn brx doi gu hi kn ks kok mai ml mni mr ne or pa sa sat sd ta te ur".split(" "));
 const cache = new Map();
 
@@ -14,27 +14,34 @@ export function speechInput(body) {
 }
 
 export async function synthesizeSpeech({ language, text }, credentials, fetcher = fetch) {
-  const pipelineId = credentials.pipelineId || defaultPipeline;
+  const pipelineIds = credentials.pipelineId ? [credentials.pipelineId] : defaultPipelines;
   if (!credentials.userId || !credentials.ulcaApiKey) throw Error("Speech service is not configured.");
   const cached = cache.get(language);
   let settings = cached?.expires > Date.now() ? cached : null;
   if (!settings) {
-    const response = await fetcher(configEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", userId: credentials.userId, ulcaApiKey: credentials.ulcaApiKey },
-      body: JSON.stringify({ pipelineTasks: [{ taskType: "tts", config: { language: { sourceLanguage: language } } }], pipelineRequestConfig: { pipelineId } }),
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok) throw Error("Speech model lookup failed.");
-    const config = await response.json();
-    const models = config.pipelineResponseConfig?.find(item => item.taskType === "tts")?.config || [];
-    const service = models.find(item => item.language?.sourceLanguage === language);
-    const api = config.pipelineInferenceAPIEndPoint;
-    if (!service?.serviceId || !api?.inferenceApiKey?.value || (new URL(api.callbackUrl).protocol !== "https:" || new URL(api.callbackUrl).hostname !== "dhruva-api.bhashini.gov.in")) {
-      throw Object.assign(Error("Speech is unavailable for this language."), { status: 503 });
+    for (const pipelineId of pipelineIds) {
+      const response = await fetcher(configEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", userId: credentials.userId, ulcaApiKey: credentials.ulcaApiKey },
+        body: JSON.stringify({ pipelineTasks: [{ taskType: "tts", config: { language: { sourceLanguage: language } } }], pipelineRequestConfig: { pipelineId } }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (response.status === 400 || response.status === 422) continue;
+      if (!response.ok) throw Error("Speech model lookup failed.");
+      const config = await response.json();
+      const models = config.pipelineResponseConfig?.find(item => item.taskType === "tts")?.config || [];
+      const service = models.find(item => item.language?.sourceLanguage === language);
+      if (!service?.serviceId) continue;
+      const api = config.pipelineInferenceAPIEndPoint;
+      const callback = api?.callbackUrl && new URL(api.callbackUrl);
+      if (!api?.inferenceApiKey?.value || callback?.protocol !== "https:" || callback.hostname !== "dhruva-api.bhashini.gov.in") {
+        throw Error("Speech model configuration is invalid.");
+      }
+      settings = { serviceId: service.serviceId, url: api.callbackUrl, key: api.inferenceApiKey.value, expires: Date.now() + 3600000 };
+      cache.set(language, settings);
+      break;
     }
-    settings = { serviceId: service.serviceId, url: api.callbackUrl, key: api.inferenceApiKey.value, expires: Date.now() + 3600000 };
-    cache.set(language, settings);
+    if (!settings) throw Object.assign(Error("Speech is unavailable for this language."), { status: 503 });
   }
   const response = await fetcher(settings.url, {
     method: "POST",

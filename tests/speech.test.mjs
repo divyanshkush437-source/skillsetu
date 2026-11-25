@@ -26,3 +26,25 @@ test("Speech resolves a matching model and returns WAV from the provider", async
   assert.equal(requests[1].body.inputData.input[0].source, "ᱡᱚᱦᱟᱨ");
   assert.equal(requests[1].headers.Authorization, "inference-key");
 });
+
+test("Speech checks another pipeline when the first has no model for the selected language", async () => {
+  const requests = [];
+  const fetcher = async (url, request) => {
+    requests.push({ url, body: JSON.parse(request.body) });
+    return {
+      ok: true,
+      json: async () => requests.length === 1
+        ? { pipelineResponseConfig: [{ taskType: "tts", config: [] }] }
+        : requests.length === 2
+          ? {
+              pipelineResponseConfig: [{ taskType: "tts", config: [{ language: { sourceLanguage: "doi" }, serviceId: "model/doi" }] }],
+              pipelineInferenceAPIEndPoint: { callbackUrl: "https://dhruva-api.bhashini.gov.in/services/inference/pipeline", inferenceApiKey: { value: "key" } },
+            }
+          : { pipelineResponse: [{ audio: [{ audioContent: "UklGRg==" }] }] },
+    };
+  };
+  const result = await synthesizeSpeech({ language: "doi", text: "डोगरी" }, { userId: "account", ulcaApiKey: "secret" }, fetcher);
+  assert.equal(result.mimeType, "audio/wav");
+  assert.equal(requests.length, 3);
+  assert.notEqual(requests[0].body.pipelineRequestConfig.pipelineId, requests[1].body.pipelineRequestConfig.pipelineId);
+});
