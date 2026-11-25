@@ -68,3 +68,9 @@ On Post a local job, enter a short English, Hindi, or Hinglish description. A li
 Edit training/examples.json to add labelled, anonymous descriptions. Keep separate examples in training/evaluation.json. Run npm run train to regenerate backend/trained-skills.json and evaluate it. Run npm test and npm run build after changing the model. No external AI service is used. POST /job accepts a listed skill or the explicit value auto; ambiguous auto requests return a 400 so the caller can ask for a skill. Normal explicit skill submissions remain authoritative.
 
 The first evaluation used 72 authored examples across nine trades and 33 separate synthetic requests. Twenty of 27 trade-specific requests received the expected suggestion. Seven needed manual selection. All six vague or unsupported examples received no suggestion. These results describe this small dataset only.
+
+## Voice guidance
+
+The guided screens use a matching browser voice when installed. For other languages, configure the speech Lambda with BHASHINI, which returns audio on tap. Create one encrypted SSM SecureString parameter containing JSON like `{"userId":"...","ulcaApiKey":"..."}` from an approved BHASHINI account. Set `BHASHINI_PARAMETER` to that parameter name before running `scripts/deploy.sh`. The deployment script passes it into the CloudFormation stack. Keep these credentials out of the frontend, Git, and browser storage. The Lambda discovers a TTS model for each chosen language and fetches WAV audio. Model availability is controlled by BHASHINI. The client currently uses this service only when its browser has no matching voice.
+
+The local standalone HTML demo has no remote speech backend, so it needs an installed browser voice. For the full 22 language voice flow, test the hosted build after its backend is configured. An unavailable voice shows a clear message while picture buttons remain usable.

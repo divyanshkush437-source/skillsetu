@@ -15,6 +15,11 @@
     "TurnstileSecretParameter": {
       "Type": "String",
       "Default": ""
+    },
+    "BhashiniParameter": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Optional SSM parameter containing BHASHINI userId and ulcaApiKey JSON"
     }
   },
   "Globals": {
@@ -1179,6 +1184,59 @@
               },
               "Path": "/api/v1/enquiry/{id}",
               "Method": "PATCH"
+            }
+          }
+        }
+      }
+    },
+    "SpeechFn": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "speech.handler",
+        "Timeout": 29,
+        "Environment": {
+          "Variables": {
+            "BHASHINI_PARAMETER": {
+              "Ref": "BhashiniParameter"
+            }
+          }
+        },
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:UpdateItem"
+                ],
+                "Resource": {
+                  "Fn::GetAtt": [
+                    "State",
+                    "Arn"
+                  ]
+                }
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "ssm:GetParameter"
+                ],
+                "Resource": {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*"
+                }
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "Http": {
+            "Type": "HttpApi",
+            "Properties": {
+              "ApiId": {
+                "Ref": "Api"
+              },
+              "Path": "/api/v1/speech",
+              "Method": "POST"
             }
           }
         }

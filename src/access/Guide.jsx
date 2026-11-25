@@ -12,25 +12,58 @@ function Language({code,change}){
   return <label className="languagePicker"><Globe2 aria-hidden="true"/><select aria-label="Language / भाषा" value={code} onChange={e=>change(e.target.value)}>{Object.values(packs).map(p=><option key={p.code} value={p.code} lang={p.code} dir="auto">{p.name}</option>)}</select></label>;
 }
 function AudioGuide({pack,words,speaker}){
-  const [playing,play]=useState(false),[missing,notice]=useState(false);
-  useEffect(()=>{
-    const synth=window.speechSynthesis;
-    const refresh=()=>notice(false);
-    synth?.getVoices(); synth?.addEventListener?.("voiceschanged",refresh);
-    play(false);notice(false);
-    return ()=>{synth?.removeEventListener?.("voiceschanged",refresh);synth?.cancel();};
-  },[words,pack.code]);
-  function speak(message=words){
-    const synth=window.speechSynthesis;
-    if(playing && message===words){synth.cancel();play(false);return;}
-    const voice=synth?.getVoices().find(v=>v.lang.toLowerCase().split(/[-_]/)[0]===pack.code);
-    if(!voice || !window.SpeechSynthesisUtterance){notice(true);return;}
-    synth.cancel();const line=new SpeechSynthesisUtterance(message);line.voice=voice;line.lang=voice.lang;line.rate=.85;
-    line.onend=()=>play(false);line.onerror=()=>{play(false);notice(true);};
-    notice(false);play(true);synth.speak(line);
+  const [state,setState]=useState("idle");
+  const current=useRef(null);
+  const request=useRef(0);
+  function stop(){
+    request.current++;
+    window.speechSynthesis?.cancel();
+    current.current?.pause();
+    current.current=null;
+    setState("idle");
   }
-  useEffect(()=>{speaker.current=speak;return ()=>{speaker.current=null;};});
-  return <><button className="audioGuide" onClick={()=>speak()}>{playing?<Square/>:<Volume2/>}{playing?pack.t.stop:pack.t.listen}</button>{missing&&<p role="status">{pack.t.silent}</p>}</>;
+  useEffect(()=>()=>{request.current++;window.speechSynthesis?.cancel();current.current?.pause();},[pack.code,words]);
+  async function speak(message=words){
+    if(state==="playing" && message===words){stop();return;}
+    stop();
+    const attempt=request.current;
+    const synth=window.speechSynthesis;
+    const voice=synth?.getVoices().find(v=>v.lang.toLowerCase().split(/[-_]/)[0]===pack.code);
+    if(voice && window.SpeechSynthesisUtterance){
+      const line=new SpeechSynthesisUtterance(message);
+      line.voice=voice;line.lang=voice.lang;line.rate=.85;
+      line.onend=()=>{if(request.current===attempt)setState("idle");};
+      line.onerror=()=>{
+        if(request.current!==attempt)return;
+        if(live)playRemote(message,attempt);
+        else setState("unavailable");
+      };
+      setState("playing");synth.speak(line);return;
+    }
+    if(!live){setState("unavailable");return;}
+    await playRemote(message,attempt);
+  }
+  async function playRemote(message,attempt){
+    setState("loading");
+    try{
+      const result=await api("/speech",{method:"POST",body:{language:pack.code,text:message}});
+      if(request.current!==attempt)return;
+      const audio=new Audio("data:"+result.mimeType+";base64,"+result.audio);
+      current.current=audio;
+      audio.onended=()=>{if(request.current===attempt)setState("idle");};
+      audio.onerror=()=>{if(request.current===attempt)setState("unavailable");};
+      await audio.play();
+      if(request.current===attempt)setState("playing");
+    }catch{if(request.current===attempt)setState("unavailable");}
+  }
+  useEffect(()=>{speaker.current=speak;return()=>{speaker.current=null;};});
+  return <>
+    <button className="audioGuide" onClick={()=>state==="playing"||state==="loading"?stop():speak()}>
+      {state==="playing"||state==="loading"?<Square/>:<Volume2/>}
+      {state==="playing"?pack.t.stop:state==="loading"?pack.t.loading:pack.t.listen}
+    </button>
+    {state==="unavailable"&&<p role="status">{pack.t.silent}</p>}
+  </>;
 }
 function Tile({icon:Icon=ArrowRight,children,onClick}){return <button className="guideTile" onClick={onClick}><Icon aria-hidden="true"/><span>{children}</span></button>;}
 export default function Guide({path,pack,change,exit}){
