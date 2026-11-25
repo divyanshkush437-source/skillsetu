@@ -2,11 +2,12 @@ import areaNames from "./areas.json";
 import React,{useEffect,useRef,useState} from "react";
 import {Globe2,Home,Volume2,Square,ChevronLeft,Search,BriefcaseBusiness,MapPin,UserRound,ClipboardList,ArrowRight,MessageCircle,Hand,Check} from "lucide-react";
 import {packs} from "./catalog.mjs";
+import {speechChunks} from "./audio.mjs";
 import {config,api,live,read,save,navigate,demoWorkers,wa,route} from "../data";
 import {tradeIcons} from "../ui";
 const Auth=React.lazy(()=>import("../account").then(m=>({default:m.Auth})));
 import {firebaseAuth} from "../auth";
-import {areasOf,available,visible} from "../../backend/listing.mjs";
+import {areasOf,available,visible,draftMessage} from "../../backend/listing.mjs";
 
 function Language({code,change}){
   return <label className="languagePicker"><Globe2 aria-hidden="true"/><select aria-label="Language / भाषा" value={code} onChange={e=>change(e.target.value)}>{Object.values(packs).map(p=><option key={p.code} value={p.code} lang={p.code} dir="auto">{p.name}</option>)}</select></label>;
@@ -22,7 +23,10 @@ function AudioGuide({pack,words,speaker}){
     current.current=null;
     setState("idle");
   }
-  useEffect(()=>()=>{request.current++;window.speechSynthesis?.cancel();current.current?.pause();},[pack.code,words]);
+  useEffect(()=>{
+    setState("idle");
+    return ()=>{request.current++;window.speechSynthesis?.cancel();current.current?.pause();current.current=null;};
+  },[pack.code,words]);
   async function speak(message=words){
     if(state==="playing" && message===words){stop();return;}
     stop();
@@ -46,14 +50,20 @@ function AudioGuide({pack,words,speaker}){
   async function playRemote(message,attempt){
     setState("loading");
     try{
-      const result=await api("/speech",{method:"POST",body:{language:pack.code,text:message}});
-      if(request.current!==attempt)return;
-      const audio=new Audio("data:"+result.mimeType+";base64,"+result.audio);
-      current.current=audio;
-      audio.onended=()=>{if(request.current===attempt)setState("idle");};
-      audio.onerror=()=>{if(request.current===attempt)setState("unavailable");};
-      await audio.play();
-      if(request.current===attempt)setState("playing");
+      for(const text of speechChunks(message)){
+        if(request.current!==attempt)return;
+        const result=await api("/speech",{method:"POST",body:{language:pack.code,text}});
+        if(request.current!==attempt)return;
+        const audio=new Audio("data:"+result.mimeType+";base64,"+result.audio);
+        current.current=audio;
+        await new Promise((resolve,reject)=>{
+          audio.onended=resolve;
+          audio.onpause=resolve;
+          audio.onerror=()=>reject(Error("Audio playback failed."));
+          audio.play().then(()=>{if(request.current===attempt)setState("playing");},reject);
+        });
+      }
+      if(request.current===attempt){current.current=null;setState("idle");}
     }catch{if(request.current===attempt)setState("unavailable");}
   }
   useEffect(()=>{speaker.current=speak;return()=>{speaker.current=null;};});
@@ -70,7 +80,7 @@ export default function Guide({path,pack,change,exit}){
   const t=pack.t, search=path==="/search", join=path==="/register", job=path==="/post-job", dash=path==="/dashboard", id=path.startsWith("/worker/")?path.slice(8):"", gated=join||job||dash;
   const query=new URLSearchParams(route().search);
   const [skill,S]=useState(query.get("skill")||""),[area,A]=useState(query.get("locality")||""),[name,N]=useState(""),[consent,C]=useState(false),[description,D]=useState("");
-  const [step,T]=useState(search&&skill&&area?"results":join?"name":search||job?"trade":"home"),[workers,W]=useState([]),[own,O]=useState(null),[user,U]=useState(live?null:read("demoUser",null));
+  const [step,T]=useState(search&&skill&&area?"results":join?"name":search||job?"trade":"home"),[workers,W]=useState([]),[own,O]=useState(null),[user,U]=useState(live?null:read("demoUser",null)),[jobs,J]=useState(null);
   const [busy,B]=useState(false),[err,E]=useState(""),[tick,R]=useState(0),[waiting,Q]=useState(gated||!!id||step==="results");
   const speaker=useRef(null),heading=useRef(null),requestId=useRef(null);
   const areaScript=["hi","mr","mai","doi","kok","brx","ne","sa"].includes(pack.code)?"dev":pack.code==="as"?"bn":pack.code;
@@ -85,7 +95,7 @@ export default function Guide({path,pack,change,exit}){
         if(current&&!user)U(current);
         if(current&&(join||dash)){
           const w=live?await api("/me",{user:current}):demoWorkers().find(w=>w.id===current.uid);
-          if(active){O(w||null);if(w&&join){N(w.name);S(w.skill);A(w.locality);}}
+          if(active){O(w||null);if(w&&join){N(w.name);S(w.skill);A(w.locality);C(w.listed!==false);}}
         }
       }else if(id){
         const w=local?demoWorkers().find(w=>w.id===id&&visible(w)):await api("/worker/"+encodeURIComponent(id));
@@ -97,6 +107,17 @@ export default function Guide({path,pack,change,exit}){
     })().catch(e=>active&&E(e.message)).finally(()=>active&&Q(false));
     return ()=>{active=false;};
   },[path,user,tick,step==="results"]);
+  useEffect(()=>{
+    if(!dash||!own)return;
+    if(!visible(own)){J([]);return;}
+    let active=true;
+    J(null);
+    (async()=>{
+      const items=live?await api("/jobs",{user}):read("jobs",[]).filter(j=>j.skill===own.skill&&areasOf(own).includes(j.locality)&&Date.parse(j.createdAt)>Date.now()-604800000);
+      if(active)J(items);
+    })().catch(e=>active&&E(e.message));
+    return ()=>{active=false;};
+  },[dash,own,user]);
   const isGate=gated&&!user;
   const phase=waiting?"loading":isGate?"phone":id?"preview":dash?"dashboard":step;
   const title=t[phase==="results"?"find":phase==="review"?"preview":phase==="done"?"saved":phase]||t.home;
@@ -135,9 +156,15 @@ export default function Guide({path,pack,change,exit}){
     else save("profiles",read("profiles",[]).map(w=>w.id===own.id?{...w,listed}:w));
     O({...own,listed});C(false);
   });}
+  function setAvailability(availability){run(async()=>{
+    const next={...own,availability,confirmedAt:new Date().toISOString()};
+    if(live)await api("/worker/"+encodeURIComponent(own.id)+"/availability",{method:"PATCH",user,body:{availability}});
+    else save("profiles",read("profiles",[]).map(w=>w.id===own.id?next:w));
+    O(next);
+  });}
   function cards(){return workers.length?workers.map(w=><article key={w.id} className="guideCard"><h2 dir="auto">{w.name}</h2><p>{t[w.skill]} · {areaLabel(w.locality)}</p>{w.priceRange&&w.priceRange!=="Ask for estimate"&&<p>{t.price} · <bdi>{w.priceRange}</bdi></p>}{(w.id.startsWith("demo-")?w.availability:live?w.availability:available(w))===true&&<p>{t.available}</p>}{!id&&<Tile icon={UserRound} onClick={()=>navigate("/worker/"+w.id)}>{t.preview}</Tile>}<button className="guideContact" disabled={busy} onClick={()=>run(async()=>{
     if(!live||w.id.startsWith("demo-"))window.location.assign(w.whatsappLink);
-    else {const r=await api("/worker/"+encodeURIComponent(w.id)+"/contact",{method:"POST"});save("receipts",{...read("receipts",{}),[r.receipt]:{id:w.id,at:Date.now(),outcome:"Opened contact"}});window.location.assign(r.url+"?text="+encodeURIComponent(t[w.skill]+" — "+areaLabel(w.locality)));}
+    else {const r=await api("/worker/"+encodeURIComponent(w.id)+"/contact",{method:"POST"});save("receipts",{...read("receipts",{}),[r.receipt]:{id:w.id,at:Date.now(),outcome:"Opened contact"}});window.location.assign(r.url+"?text="+encodeURIComponent(draftMessage(w.skill,area||w.locality)));}
   })}><MessageCircle/>{t.contact}</button></article>):<p role="status">{t.empty}</p>;}
   const privacy=<label className="consentGuide"><input type="checkbox" checked={consent} onChange={e=>C(e.target.checked)}/>{t.consent}</label>;
   return <div className="guided" dir={pack.rtl?"rtl":"ltr"}><header><div><button className="gBrand" onClick={()=>navigate("/")}><Home/>SkillSetu</button><Language code={pack.code} change={change}/></div></header><main>
@@ -145,7 +172,7 @@ export default function Guide({path,pack,change,exit}){
     <h1 tabIndex="-1" ref={heading}>{title}</h1><AudioGuide pack={pack} words={words} speaker={speaker}/>
     {err&&<p role="alert">{t.retry} · {err} <button onClick={()=>R(tick+1)}>{t.retry}</button></p>}
     {!waiting&&(!err||busy||phase==="review")&&<div className="guideBody">
-    {isGate?<React.Suspense fallback={<p>{t.loading}</p>}><Auth ready={U} pack={pack}/></React.Suspense>:id||phase==="results"?cards():dash?(own?<><h2>{own.name}</h2><p>{t[own.skill]} · {areaLabel(own.locality)}</p>{own.listed===false&&privacy}<button disabled={busy||(own.listed===false&&!consent)} onClick={()=>listing(own.listed===false)}>{own.listed===false?t.show:t.pause}</button><Tile icon={UserRound} onClick={()=>navigate("/register")}>{t.join}</Tile></>:<Tile icon={UserRound} onClick={()=>navigate("/register")}>{t.join}</Tile>):phase==="home"?<div className="guideGrid">{[["find","/search",Search],["join","/register",Hand],["post","/post-job",ClipboardList],["dashboard","/dashboard",UserRound]].map(([k,p,i])=><Tile key={k} icon={i} onClick={()=>navigate(p)}>{t[k]}</Tile>)}</div>
+    {isGate?<React.Suspense fallback={<p>{t.loading}</p>}><Auth ready={U} pack={pack}/></React.Suspense>:id||phase==="results"?cards():dash?(own?<><h2>{own.name}</h2><p>{t[own.skill]} · {areaLabel(own.locality)}</p><button disabled={busy} onClick={()=>setAvailability(!(live?own.availability:available(own)))}>{(live?own.availability:available(own))?t.available:t.away}</button>{own.listed===false&&privacy}<button disabled={busy||(own.listed===false&&!consent)} onClick={()=>listing(own.listed===false)}>{own.listed===false?t.show:t.pause}</button>{visible(own)&&<Tile icon={UserRound} onClick={()=>navigate("/worker/"+own.id)}>{t.preview}</Tile>}<Tile icon={UserRound} onClick={()=>navigate("/register")}>{t.join}</Tile><section><h2>{t.request}</h2>{jobs===null?<p>{t.loading}</p>:jobs.map(j=><article className="jobitem" key={j.id}><p>{j.description}</p><p>{areaLabel(j.locality)}</p><a href={"tel:"+j.posterPhone}>{t.phone} · <bdi>···· {j.posterPhone.slice(-4)}</bdi></a></article>)}</section></>:<Tile icon={UserRound} onClick={()=>navigate("/register")}>{t.join}</Tile>):phase==="home"?<div className="guideGrid">{[["find","/search",Search],["join","/register",Hand],["post","/post-job",ClipboardList],["dashboard","/dashboard",UserRound]].map(([k,p,i])=><Tile key={k} icon={i} onClick={()=>navigate(p)}>{t[k]}</Tile>)}</div>
     :phase==="name"?<form onSubmit={e=>{e.preventDefault();T("trade");}}><input aria-label={t.name} autoComplete="name" required maxLength={50} value={name} onChange={e=>N(e.target.value)}/><button disabled={!name.trim()}>{t.next}<ArrowRight/></button></form>
     :phase==="trade"?<div className="guideGrid">{tiles(config.skills,v=>{S(v);T("area");},tradeIcons)}</div>
     :phase==="area"?<div className="guideGrid areas">{tiles(areaChoices,v=>{A(v);if(search){navigate("/search?"+new URLSearchParams({skill,locality:v,...(query.get("demo")==="1"?{demo:"1"}:{})}));T("results");}else T(job?"request":"review");})}</div>

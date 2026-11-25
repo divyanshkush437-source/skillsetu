@@ -5,7 +5,7 @@ const allowedCodes = new Set("en as bn brx doi gu hi kn ks kok mai ml mni mr ne 
 const cache = new Map();
 
 export function speechInput(body) {
-  if (!allowedCodes.has(body.language)) throw Object.assign(Error("Choose a listed language."), { status: 400 });
+  if (!allowedCodes.has(body?.language)) throw Object.assign(Error("Choose a listed language."), { status: 400 });
   const text = body.text;
   if (typeof text !== "string" || text.length < 1 || text.length > 300 || /[\u0000-\u001f]/.test(text)) {
     throw Object.assign(Error("Choose a short phrase to read aloud."), { status: 400 });

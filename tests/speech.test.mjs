@@ -1,11 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { speechInput, synthesizeSpeech } from "../backend/speech-core.mjs";
+import { speechChunks } from "../src/access/audio.mjs";
+
+test("Long spoken pages fit the speech request limit without losing words", () => {
+  const message = Array(75).fill("कारीगर इलाका").join(". ");
+  const chunks = speechChunks(message);
+  assert.ok(chunks.length > 1);
+  assert.ok(chunks.every(chunk => chunk.length <= 240 && speechInput({ language: "hi", text: chunk })));
+  assert.equal(chunks.join(" "), message);
+});
 
 test("Speech accepts listed languages and rejects oversized requests", () => {
   assert.deepEqual(speechInput({ language: "sat", text: "ᱡᱚᱦᱟᱨ" }), { language: "sat", text: "ᱡᱚᱦᱟᱨ" });
   assert.throws(() => speechInput({ language: "xx", text: "hello" }), /listed language/);
   assert.throws(() => speechInput({ language: "hi", text: "a".repeat(301) }), /short phrase/);
+  assert.throws(() => speechInput(), /listed language/);
 });
 
 test("Speech resolves a matching model and returns WAV from the provider", async () => {
